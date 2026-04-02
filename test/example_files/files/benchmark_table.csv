@@ -1,0 +1,9 @@
+model,accuracy,throughput,latency,memory
+AtlasFormer,91.37,1385.4,82.6,1430.0
+BorealNet,90.92,1499.1,78.4,1525.0
+CinderLM,92.11,1210.7,95.3,1312.0
+DeltaSeq,91.88,1322.5,74.8,1664.0
+EonMixer,90.45,1710.3,88.1,1478.0
+FluxEncoder,92.56,1188.9,69.4,1822.0
+GlyphFormer,91.74,1277.6,72.9,1398.0
+HelixAttn,92.02,1254.8,76.2,1341.0

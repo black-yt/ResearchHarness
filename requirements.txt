@@ -1,0 +1,6 @@
+json5==0.14.0
+openai==2.3.0
+Pillow==11.3.0
+requests==2.32.5
+structai==0.1.22
+tiktoken==0.12.0

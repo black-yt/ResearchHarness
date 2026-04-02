@@ -1,3 +1,14 @@
+# Local agent artifacts
+AGENTS.md
+workspace/*
+!workspace/.gitkeep
+.idea/
+.vscode/
+.DS_Store
+test/example_files/pdfs/dummy_document
+.codex
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

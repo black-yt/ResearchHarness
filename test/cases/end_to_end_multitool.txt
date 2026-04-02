@@ -1,0 +1,19 @@
+You must use all five of these tools in the same run: `Read`, `Bash`, `ScholarSearch`, `WebSearch`, and `WebFetch`. Do not answer from memory alone.
+
+Task requirements:
+1. Read the metrics for 8 models from the local workspace file `test/example_files/files/benchmark_table.csv`.
+2. Use `Bash` to call the local Python environment and compute each model's score with this exact formula:
+   score = 0.45 * accuracy + 0.0008 * throughput - 0.015 * latency - 0.0012 * memory
+3. Return the highest-scoring model name and score, rounded to 5 decimal places.
+4. Use academic search to confirm the publication year of the original Transformer paper, “Attention Is All You Need.”
+5. You must search the web first, then use `WebFetch` on `https://arxiv.org/abs/1706.03762` to confirm the author list of that paper.
+6. The final result must include:
+   - `winning_model`
+   - `winning_score`
+   - `transformer_paper_year`
+   - `transformer_authors`
+   - `visited_url`
+   - `evidence_used`
+7. The final result must be a single strict JSON object with no extra explanation.
+
+Do not produce the final result unless all five tools were actually called.

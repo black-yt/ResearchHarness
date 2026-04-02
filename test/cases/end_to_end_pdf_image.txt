@@ -1,0 +1,15 @@
+You must complete a real online PDF-image task. Do not answer from memory, and do not skip the tools.
+
+Task requirements:
+1. Use `Bash` to download this PDF into the current workspace:
+   `https://proceedings.neurips.cc/paper_files/paper/2024/file/298c3e32d7d402189444be2ff5d19979-Paper-Conference.pdf`
+2. After downloading it, you must use `ReadPDF` to read the PDF and obtain its returned `image_paths`.
+3. Use the first image path returned by `ReadPDF`, then call `ReadImage` to read the visible text in that image.
+4. The final result must be a single strict JSON object containing at least:
+   - `pdf_url`
+   - `local_pdf_path`
+   - `first_image_path`
+   - `figure_text`
+5. `figure_text` must come from text actually visible in the first figure. Do not guess from prior knowledge.
+
+Do not produce the final result unless `Bash`, `ReadPDF`, and `ReadImage` were all actually called.

@@ -1,0 +1,32 @@
+You must use the terminal-session tools to complete a real stateful shell workflow. Do not use `Bash` or any non-terminal tool.
+
+Required tool set:
+- `TerminalStart`
+- `TerminalWrite`
+- `TerminalRead`
+- `TerminalInterrupt`
+- `TerminalKill`
+
+Task requirements:
+1. Start a terminal session in the current workspace.
+2. In that session, use `TerminalWrite` to:
+   - print the current working directory with `pwd`
+   - create a file named `terminal_state_demo.txt` containing:
+     alpha
+     beta
+   - print the marker `SESSION_READY`
+3. Use `TerminalRead` to collect the session output.
+4. Use `TerminalWrite` to start a long-running command such as `sleep 10`.
+5. Use `TerminalInterrupt` to stop that command before it finishes.
+6. Use `TerminalWrite` to print the contents of `terminal_state_demo.txt`.
+7. Use `TerminalRead` if needed to collect the remaining output.
+8. Use `TerminalKill` to close the session.
+9. The final result must be a single strict JSON object with exactly these keys:
+   - `file_name`
+   - `observed_pwd`
+   - `file_content`
+   - `session_ready_seen`
+   - `interrupt_used`
+   - `session_closed`
+
+Do not produce the final result unless all five terminal tools were actually called.

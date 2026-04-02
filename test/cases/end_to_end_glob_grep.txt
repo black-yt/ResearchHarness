@@ -1,0 +1,22 @@
+Use exactly these tools during this run: Glob, Grep, Read, Bash.
+
+Task:
+1. Use Glob to find all `.txt` files under `test/example_files/files` inside the current workspace.
+2. Use Grep to find which of those files contains the exact text `Hello.`.
+3. Use Read to inspect that matching file.
+4. Use Bash to compute the final fields deterministically from the discovered file and text.
+
+Do not use any web tools.
+Do not use any terminal tools.
+
+Return only a single JSON object with exactly these keys:
+- `txt_file_count`
+- `matched_file_name`
+- `matched_line_text`
+- `uppercase_text`
+
+Expected semantics:
+- `txt_file_count` is the number of `.txt` files found under `test/example_files/files`
+- `matched_file_name` is only the basename of the matched file
+- `matched_line_text` is the exact matched line
+- `uppercase_text` is the uppercase version of `matched_line_text`

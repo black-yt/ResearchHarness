@@ -1,0 +1,24 @@
+You must use exactly these tools during this run: `Write`, `Edit`, `Read`, and `Bash`. Do not use any other tool.
+
+Task requirements:
+1. Use `Write` to create `artifacts/write_edit_demo.txt` inside the current workspace with this exact initial content:
+   alpha=1
+   beta=2
+   status=draft
+2. Use `Edit` to make the final file content become:
+   alpha=1
+   beta=2
+   gamma=3
+   status=final
+3. Use `Read` to inspect the final file.
+4. Use `Bash` to compute:
+   - the final line count
+   - the first 12 hex characters of the SHA-256 digest of the final file
+5. The final result must be a single strict JSON object with exactly these keys:
+   - `file_path`
+   - `status`
+   - `gamma`
+   - `line_count`
+   - `sha256_prefix`
+
+Do not produce the final result unless all four tools were actually called.
