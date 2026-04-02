@@ -216,6 +216,9 @@ def default_llm_config() -> dict:
     model_name = os.environ.get("MODEL_NAME", os.environ.get("SUMMARY_MODEL_NAME", "gpt-5.4"))
     return {
         "model": model_name,
+        "api_key": os.environ.get("API_KEY", "EMPTY"),
+        "api_base": os.environ.get("API_BASE"),
+        "timeout_seconds": float(os.environ.get("LLM_TIMEOUT_SECONDS", "600")),
         "generate_cfg": {
             "max_input_tokens": int(os.environ.get("MAX_INPUT_TOKENS", "320000")),
             "max_output_tokens": int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "10000")),
@@ -291,9 +294,10 @@ class MultiTurnReactAgent(BaseAgent):
         self._native_tools_token_estimate = len(
             self._encoding.encode(json.dumps(self._native_tools, ensure_ascii=False))
         )
-        self._llm_timeout_seconds = float(os.getenv("LLM_TIMEOUT_SECONDS", "600"))
-        self._llm_api_key = os.environ.get("API_KEY", "EMPTY")
-        self._llm_api_base = os.environ.get("API_BASE")
+        self._llm_timeout_seconds = float(llm.get("timeout_seconds", os.getenv("LLM_TIMEOUT_SECONDS", "600")))
+        self._llm_api_key = str(llm.get("api_key") or os.environ.get("API_KEY", "EMPTY"))
+        api_base = str(llm.get("api_base") or os.environ.get("API_BASE", "")).strip()
+        self._llm_api_base = api_base or None
         self._llm_client = (
             OpenAI(
                 api_key=self._llm_api_key,
