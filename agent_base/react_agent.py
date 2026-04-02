@@ -3,12 +3,13 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError
 import tiktoken
+from agent_base.base import BaseAgent
 from agent_base.console_utils import ConsoleEventPrinter
-from agent_base.prompt import composed_system_prompt, configured_prompt_plugins
+from agent_base.prompt import composed_system_prompt
 from agent_base.trace_utils import FlatTraceWriter
 from agent_base.tools.tooling import normalize_workspace_root
 from agent_base.tools.tool_file import Edit, Glob, Grep, Read, ReadImage, ReadPDF, Write
@@ -112,6 +113,21 @@ def tool_schema(tool: Any) -> dict[str, Any]:
     }
 
 
+def resolved_tool_names(function_list: Optional[Sequence[str]]) -> list[str]:
+    if function_list is None:
+        return list(AVAILABLE_TOOL_MAP.keys())
+    resolved: list[str] = []
+    for raw_name in function_list:
+        name = str(raw_name).strip()
+        if name:
+            resolved.append(name)
+    return resolved
+
+
+def available_tool_schemas(function_list: Optional[Sequence[str]] = None) -> list[dict[str, Any]]:
+    return [tool_schema(AVAILABLE_TOOL_MAP[name]) for name in resolved_tool_names(function_list)]
+
+
 def normalized_tool_call(tool_call: Any) -> dict[str, Any]:
     return {
         "id": getattr(tool_call, "id", ""),
@@ -202,6 +218,7 @@ def default_llm_config() -> dict:
         "model": model_name,
         "generate_cfg": {
             "max_input_tokens": int(os.environ.get("MAX_INPUT_TOKENS", "320000")),
+            "max_output_tokens": int(os.environ.get("LLM_MAX_OUTPUT_TOKENS", "10000")),
             "max_retries": int(os.environ.get("LLM_MAX_RETRIES", "10")),
             "temperature": float(os.environ.get("TEMPERATURE", "0.6")),
             "top_p": float(os.environ.get("TOP_P", "0.95")),
@@ -210,43 +227,47 @@ def default_llm_config() -> dict:
     }
 
 
-def merged_prompt_plugins(extra_plugins: Optional[List[str]] = None) -> list[str]:
-    configured = configured_prompt_plugins()
-    extra = [plugin for plugin in (extra_plugins or []) if str(plugin).strip()]
-    merged: list[str] = []
-    seen: set[str] = set()
-    for plugin in configured + extra:
-        if plugin in seen:
-            continue
-        merged.append(plugin)
-        seen.add(plugin)
-    return merged
+def execute_tool_by_name(tool_map: dict[str, Any], tool_name: str, tool_args: Any, **kwargs):
+    if tool_name not in tool_map:
+        return f"Error: Tool {tool_name} not found"
+    tool = tool_map[tool_name]
+    if tool_name == "ReadImage" and hasattr(tool, "call_for_llm"):
+        return tool.call_for_llm(tool_args, **kwargs)
+    return tool.call(tool_args, **kwargs)
 
 
 def build_default_agent(
     *,
     trace_path: Optional[str] = None,
     function_list: Optional[List[str]] = None,
-    prompt_plugins: Optional[List[str]] = None,
+    role_prompt: Optional[str] = None,
+    max_llm_calls: Optional[int] = None,
+    max_runtime_seconds: Optional[int] = None,
 ) -> "MultiTurnReactAgent":
     return MultiTurnReactAgent(
         llm=default_llm_config(),
         trace_path=trace_path,
-        function_list=function_list or list(AVAILABLE_TOOL_MAP.keys()),
-        prompt_plugins=merged_prompt_plugins(prompt_plugins),
+        function_list=function_list,
+        role_prompt=role_prompt,
+        max_llm_calls=max_llm_calls,
+        max_runtime_seconds=max_runtime_seconds,
     )
 
-class MultiTurnReactAgent:
+class MultiTurnReactAgent(BaseAgent):
     def __init__(
         self,
         function_list: Optional[List[str]] = None,
         llm: Optional[Dict] = None,
         trace_path: Optional[str] = None,
-        prompt_plugins: Optional[List[str]] = None,
+        role_prompt: Optional[str] = None,
+        max_llm_calls: Optional[int] = None,
+        max_runtime_seconds: Optional[int] = None,
     ):
         if not isinstance(llm, dict):
             raise ValueError("llm must be a dict configuration.")
-        requested_tools = function_list or list(AVAILABLE_TOOL_MAP.keys())
+        requested_tools = self.resolve_function_list(function_list)
+        if requested_tools is None:
+            requested_tools = list(AVAILABLE_TOOL_MAP.keys())
         unknown_tools = [tool for tool in requested_tools if tool not in AVAILABLE_TOOL_MAP]
         if unknown_tools:
             raise ValueError(f"Unknown tools requested: {unknown_tools}")
@@ -260,7 +281,11 @@ class MultiTurnReactAgent:
         self.model = str(llm["model"])
         self.llm_generate_cfg = llm["generate_cfg"]
         self.trace_path = Path(trace_path) if trace_path else None
-        self.prompt_plugins = merged_prompt_plugins(prompt_plugins)
+        self.role_prompt = self.resolve_role_prompt(role_prompt)
+        self.max_llm_calls = int(max_llm_calls) if max_llm_calls is not None else max_llm_calls_per_run()
+        self.max_runtime_seconds = (
+            int(max_runtime_seconds) if max_runtime_seconds is not None else max_agent_runtime_seconds()
+        )
         self._native_tools = [tool_schema(self.tool_map[tool_name]) for tool_name in self.tool_names]
         self._encoding = tiktoken.get_encoding("cl100k_base")
         self._native_tools_token_estimate = len(
@@ -302,13 +327,14 @@ class MultiTurnReactAgent:
                 request_kwargs = dict(
                     model=self.model,
                     messages=msgs,
-                    tools=self._native_tools,
-                    tool_choice="auto",
-                    parallel_tool_calls=True,
                     temperature=self.llm_generate_cfg.get('temperature', 0.6),
                     top_p=self.llm_generate_cfg.get('top_p', 0.95),
-                    max_tokens=llm_max_output_tokens(),
+                    max_tokens=int(self.llm_generate_cfg.get("max_output_tokens", llm_max_output_tokens())),
                 )
+                if self._native_tools:
+                    request_kwargs["tools"] = self._native_tools
+                    request_kwargs["tool_choice"] = "auto"
+                    request_kwargs["parallel_tool_calls"] = True
                 request_kwargs["presence_penalty"] = self.llm_generate_cfg.get('presence_penalty', 1.1)
                 chat_response = request_client.chat.completions.create(**request_kwargs)
                 choice = chat_response.choices[0]
@@ -399,15 +425,16 @@ class MultiTurnReactAgent:
         start_time = time.time()
         trace_path = self.trace_path
         cur_date = today_date()
-        system_prompt = composed_system_prompt(current_date=str(cur_date), plugin_names=self.prompt_plugins)
+        extra_blocks = [self.role_prompt] if self.role_prompt else None
+        system_prompt = composed_system_prompt(current_date=str(cur_date), extra_blocks=extra_blocks)
         user_content = (
             f"Current workspace directory: {workspace_root}\n"
             "Relative local file paths resolve from the workspace directory.\n\n"
             f"User request:\n{user_request}"
         )
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
-        max_llm_calls = max_llm_calls_per_run()
-        agent_runtime_limit = max_agent_runtime_seconds()
+        max_llm_calls = self.max_llm_calls
+        agent_runtime_limit = self.max_runtime_seconds
         runtime_deadline = start_time + agent_runtime_limit
         num_llm_calls_available = max_llm_calls
         round_index = 0
@@ -633,28 +660,30 @@ class MultiTurnReactAgent:
         return finalize(result_text, termination, error=termination)
 
     def custom_call_tool(self, tool_name: str, tool_args: Any, **kwargs):
-        if tool_name in self.tool_map:
-            tool = self.tool_map[tool_name]
-            if tool_name == "ReadImage" and hasattr(tool, "call_for_llm"):
-                return tool.call_for_llm(tool_args, **kwargs)
-            return tool.call(tool_args, **kwargs)
-        return f"Error: Tool {tool_name} not found"
+        return execute_tool_by_name(self.tool_map, tool_name, tool_args, **kwargs)
 
 
-def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str], list[str]]:
+def _read_role_prompt_files(paths: Iterable[str]) -> str:
+    blocks: list[str] = []
+    for raw_path in paths:
+        path = Path(str(raw_path)).expanduser()
+        blocks.append(path.read_text(encoding="utf-8").strip())
+    return "\n\n".join(block for block in blocks if block.strip())
+
+
+def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str], str]:
     parser = argparse.ArgumentParser(description="Run the local agent directly from agent_base.react_agent.")
     parser.add_argument("question", nargs="*", help="User request text.")
     parser.add_argument("--question-file", help="Optional UTF-8 text file containing the user request.")
     parser.add_argument("--save-path", help="Optional JSONL trace output path.")
     parser.add_argument("--workspace-dir", help="Optional workspace directory for Bash and TerminalStart.")
     parser.add_argument(
-        "--plugin",
-        "--prompt-plugin",
+        "--role-prompt-file",
         action="append",
         default=[],
-        dest="prompt_plugins",
-        metavar="PLUGIN",
-        help="Optional plugin name. May be passed multiple times. Example: --plugin academic_research",
+        dest="role_prompt_files",
+        metavar="PATH",
+        help="Append one role-specific prompt file to the base system prompt. May be passed multiple times.",
     )
     args = parser.parse_args(argv)
 
@@ -666,14 +695,15 @@ def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str],
 
     if not user_request:
         raise ValueError("A non-empty question is required via positional args or --question-file.")
-    return user_request, args.save_path, args.workspace_dir, args.prompt_plugins
+    role_prompt = _read_role_prompt_files(args.role_prompt_files)
+    return user_request, args.save_path, args.workspace_dir, role_prompt
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     load_dotenv(PROJECT_ROOT / ".env")
     try:
-        user_request, save_path, workspace_dir, prompt_plugins = _parse_cli_args(argv or sys.argv[1:])
-        agent = build_default_agent(trace_path=save_path, prompt_plugins=prompt_plugins)
+        user_request, save_path, workspace_dir, role_prompt = _parse_cli_args(argv or sys.argv[1:])
+        agent = build_default_agent(trace_path=save_path, role_prompt=role_prompt or None)
         workspace_root = normalize_workspace_root(workspace_dir)
         printer = ConsoleEventPrinter(
             model_name=agent.model,

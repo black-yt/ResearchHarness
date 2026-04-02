@@ -49,8 +49,8 @@ The point is not to build a giant orchestration layer. The point is to keep a **
   The harness uses OpenAI-compatible native tool calling instead of a custom text protocol.
 - **Harness-first design**
   The project stays intentionally small: one main loop, a focused tool surface, readable CLI output, and flat traces.
-- **Plugins**
-  Domain-specific behavior can be layered on top of the base harness without changing the default general-purpose prompt.
+- **Extensible agent base**
+  Upper-layer frameworks can subclass the base ReAct agent and append role-specific prompt blocks without rewriting the execution loop.
 - **Workspace-first execution**
   Local paths, shell execution, and file discovery all start from one explicit workspace root.
 - **Strong local tools**
@@ -67,7 +67,7 @@ The point is not to build a giant orchestration layer. The point is to keep a **
 | Area | What ResearchHarness focuses on |
 | --- | --- |
 | Runtime | Small native tool-calling harness loop |
-| Plugins | Optional domain-specific prompt layers |
+| Extensibility | Base agent plus role-specific prompt addenda |
 | Local work | Workspace-first file and shell operations |
 | Evaluation | Repeatable end-to-end evaluation |
 | Data | Flat JSONL traces for training-data collection |
@@ -138,7 +138,6 @@ Important variables:
 - `SERPER_KEY_ID`
 - `JINA_API_KEYS`
 - `MINERU_TOKEN`
-- `PLUGINS` (optional, comma-separated plugin names)
 
 Minimal example:
 
@@ -156,33 +155,15 @@ Capability-specific requirements:
 - `WebFetch` requires `JINA_API_KEYS`
 - `ReadPDF` requires `MINERU_TOKEN` and `structai`
 
-### 2.5 Optional Plugins
+### 2.5 Extending the Base Agent
 
-The harness keeps the base system prompt general-purpose. Domain-specific behavior can be added through plugins.
+The harness keeps the base system prompt focused on tool calling, local execution, and the ReAct loop. Domain-specific frameworks should extend the agent class and append role-specific prompt blocks instead of replacing the base prompt.
 
-Current built-in plugin:
-
-- `academic_research` — adds stronger guidance for literature survey, idea generation, experiment design, iterative phase gates, persistent research state, and evidence-grounded reporting
-
-Enable via environment variable:
-
-```env
-PLUGINS=academic_research
-```
-
-Or enable per run:
+Inspect the base prompt assets:
 
 ```bash
-python3 -m agent_base.react_agent "your question" --plugin academic_research
-```
-
-The legacy names `PROMPT_PLUGINS` and `--prompt-plugin` are still accepted for compatibility.
-
-Inspect available plugins:
-
-```bash
-python3 -m agent_base.prompt --list-plugins
-python3 -m agent_base.prompt --show-plugin academic_research
+python3 -m agent_base.prompt --list-assets
+python3 -m agent_base.prompt --show-system
 ```
 
 ### 3. Run
@@ -205,12 +186,12 @@ Use an explicit workspace:
 python3 -m agent_base.react_agent "summarize this project" --workspace-dir /path/to/workspace
 ```
 
-Run with the academic research plugin:
+Run with one extra role-prompt file appended to the base prompt:
 
 ```bash
-python3 -m agent_base.react_agent "investigate this research task" \
+python3 -m agent_base.react_agent "review this artifact" \
   --workspace-dir /path/to/workspace \
-  --plugin academic_research
+  --role-prompt-file /path/to/role_prompt.md
 ```
 
 ---
@@ -462,6 +443,7 @@ Fixed local fixtures live under [test/example_files/](test/example_files).
 ### Core runtime
 
 - [agent_base/react_agent.py](agent_base/react_agent.py)
+- [agent_base/base.py](agent_base/base.py)
 - [agent_base/prompt.py](agent_base/prompt.py)
 - [agent_base/trace_utils.py](agent_base/trace_utils.py)
 - [agent_base/console_utils.py](agent_base/console_utils.py)
