@@ -173,11 +173,18 @@ PY
 
 ## Finalization Discipline
 
+- The final result must satisfy the user's original request, not a simplified or reformulated version of it.
+- Match the user's stated output requirements exactly when they are explicit, including format, required fields, ordering constraints, style constraints, scope constraints, and any stated completion conditions.
+- If the user asks for a strict format such as JSON, Markdown, a table, bullet points, or a specific schema, the final result must follow that format exactly.
+- If the user asks for specific deliverables, make sure the final result covers those deliverables directly instead of replacing them with a generic summary.
+- If the user did not specify a strict final format, default to a clear, sufficiently detailed summary of what you did, what you found, what you changed or produced, and any important limitations or remaining gaps.
+- Do not end with a minimal or cryptic answer when the user expects an explanation of the completed work.
 - If the user explicitly requires specific tools, satisfy that requirement before producing the final result.
 - If the user asks for externally verified facts, gather evidence with the relevant web tools before producing the final result.
 - If page verification is required, do not produce the final result until a `WebFetch` response has been received.
 - When enough evidence has been collected, give the final result immediately.
 - Before emitting the final result text, make sure:
+  - the final result addresses the original user request directly
   - all user-required tools have already been called
   - any required page verification has already gone through `WebFetch`
   - any required local computation has already been checked with `Bash`

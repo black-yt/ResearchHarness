@@ -249,23 +249,6 @@ def execute_tool_by_name(tool_map: dict[str, Any], tool_name: str, tool_args: An
     return tool.call(tool_args, **kwargs)
 
 
-def build_default_agent(
-    *,
-    trace_dir: Optional[str] = None,
-    function_list: Optional[List[str]] = None,
-    role_prompt: Optional[str] = None,
-    max_llm_calls: Optional[int] = None,
-    max_runtime_seconds: Optional[int] = None,
-) -> "MultiTurnReactAgent":
-    return MultiTurnReactAgent(
-        llm=default_llm_config(),
-        trace_dir=trace_dir,
-        function_list=function_list,
-        role_prompt=role_prompt,
-        max_llm_calls=max_llm_calls,
-        max_runtime_seconds=max_runtime_seconds,
-    )
-
 class MultiTurnReactAgent(BaseAgent):
     def __init__(
         self,
@@ -724,7 +707,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     load_dotenv(PROJECT_ROOT / ".env")
     try:
         prompt_text, trace_dir, workspace_root, role_prompt = _parse_cli_args(argv or sys.argv[1:])
-        agent = build_default_agent(trace_dir=trace_dir, role_prompt=role_prompt or None)
+        agent = MultiTurnReactAgent(
+            llm=default_llm_config(),
+            trace_dir=trace_dir,
+            role_prompt=role_prompt or None,
+        )
         resolved_workspace_root = normalize_workspace_root(workspace_root)
         printer = ConsoleEventPrinter(
             model_name=agent.model,
