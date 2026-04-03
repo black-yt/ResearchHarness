@@ -6,6 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Upper Layer](https://img.shields.io/badge/Upper%20Layer-MarkScientist-2563eb.svg)](https://github.com/WenlongZhang0517/MarkScientist)
 [![Runtime](https://img.shields.io/badge/Runtime-Native%20Tool%20Calling-4f46e5.svg)](#-how-it-works)
 [![Trace](https://img.shields.io/badge/Trace-Flat%20JSONL-0f766e.svg)](#-trace-format)
 [![Scope](https://img.shields.io/badge/Scope-Trusted%20Local-orange.svg)](#-scope)
