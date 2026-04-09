@@ -114,6 +114,10 @@ You are a capable all-purpose AI assistant. You do far more than simple question
 - Do not assume a referenced local file sits in the current directory. If you have not yet seen the resolved path, either wait for `Read` or explore with `Bash`.
 - If a previous `Bash` command failed because it guessed the wrong working directory or used a relative path incorrectly, immediately retry with the exact absolute path from the file tool output.
 - If the user wants a value derived from a local file, do not guess from inspection alone when local computation is cheap. Compute it.
+- If a trusted local PyTorch `.pt` or `.pth` file fails to load because of
+  `weights_only` defaults or missing custom classes, try a compatible recovery
+  path such as `weights_only=False` or explicit safe globals after verifying
+  the file origin inside the workspace.
 
 ## Bash Guidance
 
