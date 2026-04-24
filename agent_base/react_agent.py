@@ -254,6 +254,10 @@ def execute_tool_by_name(tool_map: dict[str, Any], tool_name: str, tool_args: An
     return tool.call(tool_args, **kwargs)
 
 
+def model_rejects_sampling_params(model_name: str) -> bool:
+    return str(model_name or "").strip().lower().startswith("claude")
+
+
 class MultiTurnReactAgent(BaseAgent):
     def __init__(
         self,
@@ -336,10 +340,11 @@ class MultiTurnReactAgent(BaseAgent):
                 request_kwargs = dict(
                     model=self.model,
                     messages=msgs,
-                    temperature=self.llm_generate_cfg.get('temperature', 0.6),
-                    top_p=self.llm_generate_cfg.get('top_p', 0.95),
                     max_tokens=int(self.llm_generate_cfg.get("max_output_tokens", llm_max_output_tokens())),
                 )
+                if not model_rejects_sampling_params(self.model):
+                    request_kwargs["temperature"] = self.llm_generate_cfg.get("temperature", 0.6)
+                    request_kwargs["top_p"] = self.llm_generate_cfg.get("top_p", 0.95)
                 if self._native_tools:
                     request_kwargs["tools"] = self._native_tools
                     request_kwargs["tool_choice"] = "auto"

@@ -19,6 +19,10 @@ DEFAULT_WEBFETCH_TIMEOUT_SECONDS = 600.0
 DEFAULT_WEBFETCH_SUMMARY_TEMPERATURE = 0.0
 
 
+def model_rejects_sampling_params(model_name: str) -> bool:
+    return str(model_name or "").strip().lower().startswith("claude")
+
+
 def search_debug_enabled() -> bool:
     return env_flag("DEBUG_SEARCH")
 
@@ -413,11 +417,13 @@ class WebFetch(ToolBase):
                     if remaining is not None
                     else client
                 )
-                chat_response = request_client.chat.completions.create(
-                    model=self._summary_model_name,
-                    messages=msgs,
-                    temperature=self._summary_temperature,
-                )
+                request_kwargs = {
+                    "model": self._summary_model_name,
+                    "messages": msgs,
+                }
+                if not model_rejects_sampling_params(self._summary_model_name):
+                    request_kwargs["temperature"] = self._summary_temperature
+                chat_response = request_client.chat.completions.create(**request_kwargs)
                 content = chat_response.choices[0].message.content
                 if content:
                     return content
