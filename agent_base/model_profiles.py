@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+DEFAULT_COMPACT_TRIGGER_TOKENS = 128 * 1024
+
 
 @dataclass(frozen=True)
 class ModelProfile:
@@ -18,7 +20,7 @@ class ModelProfile:
     def compact_trigger_tokens(self) -> int:
         if self.compact_trigger_tokens_override is not None:
             return self.compact_trigger_tokens_override
-        return max(256, self.context_window - self.output_reserve_tokens - self.compact_buffer_tokens)
+        return min(self.context_window, max(256, DEFAULT_COMPACT_TRIGGER_TOKENS))
 
 
 def _model_family(model_name: str) -> str:

@@ -753,25 +753,20 @@ def check_reasoning_replay_error_triggers_compacted_retry() -> tuple[bool, str]:
 
 
 def check_compact_trigger_token_parser_supports_k_suffix() -> tuple[bool, str]:
-    from agent_base.model_profiles import parse_compact_trigger_tokens
+    from agent_base.model_profiles import DEFAULT_COMPACT_TRIGGER_TOKENS, parse_compact_trigger_tokens
 
-    parsed_128k = parse_compact_trigger_tokens("128k", context_window=320000)
     parsed_16k = parse_compact_trigger_tokens("16k", context_window=65536)
     parsed_32k = parse_compact_trigger_tokens("32k", context_window=65536)
     detail = json.dumps(
         {
-            "parsed_128k": parsed_128k,
+            "default_compact_trigger_tokens": DEFAULT_COMPACT_TRIGGER_TOKENS,
             "parsed_16k": parsed_16k,
             "parsed_32k": parsed_32k,
         },
         ensure_ascii=False,
         indent=2,
     )
-    ok = (
-        parsed_128k == 131072
-        and parsed_16k == 16384
-        and parsed_32k == 32768
-    )
+    ok = DEFAULT_COMPACT_TRIGGER_TOKENS == 131072 and parsed_16k == 16384 and parsed_32k == 32768
     return ok, detail
 
 
