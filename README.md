@@ -74,7 +74,7 @@ The goal is not novelty for its own sake. The goal is to provide a small, inspec
 - **2026-04-25: Automatic context compaction for long runs**
   ResearchHarness now supports built-in context compaction for long multi-step tasks instead of relying only on a growing raw message list.
 - **2026-04-25: Configurable compaction trigger**
-  You can override the automatic trigger budget with `AUTO_COMPACT_TRIGGER_TOKENS=16k` or `llm.generate_cfg["compact_trigger_tokens"] = "32k"`.
+  The default compaction trigger is `128k`, and you can override it with `AUTO_COMPACT_TRIGGER_TOKENS=16k` or `llm.generate_cfg["compact_trigger_tokens"] = "32k"`.
 - **2026-04-25: Training-ready trace capture**
   The existing `trace_*.jsonl` format now records full `llm_call` and `compaction` payloads in the same file, so reasoning context, tool environment, and memory-compression steps can all be reused for training or distillation.
 - **2026-04-25: Preserved compact memory**
@@ -431,7 +431,7 @@ In practice, this means the harness can be used not only to run agents, but also
 
 Long runs can trigger automatic context compaction before the input budget is exhausted.
 
-By default, the trigger budget is computed from the model input/output budget. You can override it when you want earlier compaction:
+By default, the trigger budget is `128k`. You can override it when you want earlier or later compaction:
 
 ```bash
 AUTO_COMPACT_TRIGGER_TOKENS=16k python3 run_agent.py "your prompt"

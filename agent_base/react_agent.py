@@ -654,10 +654,9 @@ class MultiTurnReactAgent(BaseAgent):
         max_llm_calls = self.max_llm_calls
         max_input_tokens = int(self.llm_generate_cfg.get("max_input_tokens", DEFAULT_MAX_INPUT_TOKENS))
         max_output_tokens = int(self.llm_generate_cfg.get("max_output_tokens", llm_max_output_tokens()))
-        compact_trigger_tokens = self.llm_generate_cfg.get(
-            "compact_trigger_tokens",
-            os.getenv("AUTO_COMPACT_TRIGGER_TOKENS"),
-        )
+        compact_trigger_tokens = self.llm_generate_cfg.get("compact_trigger_tokens")
+        if compact_trigger_tokens is None:
+            compact_trigger_tokens = os.getenv("AUTO_COMPACT_TRIGGER_TOKENS", "128k")
         model_profile = resolve_model_profile(
             self.model,
             configured_max_input_tokens=max_input_tokens,
