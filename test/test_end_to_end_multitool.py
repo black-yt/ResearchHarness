@@ -99,9 +99,6 @@ def main() -> int:
     env["MAX_AGENT_RUNTIME_SECONDS"] = "390"
     env["LLM_MAX_RETRIES"] = "2"
     env["LLM_TIMEOUT_SECONDS"] = "120"
-    env["WEBFETCH_LLM_TIMEOUT_SECONDS"] = "90"
-    env["WEBFETCH_SUMMARY_TEMPERATURE"] = "0"
-    env["VISIT_SERVER_MAX_RETRIES"] = "1"
     env["WORKSPACE_ROOT"] = str(ROOT)
 
     try:

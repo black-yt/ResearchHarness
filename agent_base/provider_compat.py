@@ -19,6 +19,7 @@ def apply_sampling_params(
     model_name: str,
     temperature: Any = None,
     top_p: Any = None,
+    presence_penalty: Any = None,
 ) -> None:
     if model_rejects_sampling_params(model_name):
         return
@@ -26,3 +27,5 @@ def apply_sampling_params(
         request_kwargs["temperature"] = temperature
     if top_p is not None:
         request_kwargs["top_p"] = top_p
+    if presence_penalty is not None:
+        request_kwargs["presence_penalty"] = presence_penalty

@@ -1491,9 +1491,11 @@ def check_claude_models_skip_sampling_params_in_agent_runtime() -> tuple[bool, s
         isinstance(claude_client.request_kwargs, dict)
         and "temperature" not in claude_client.request_kwargs
         and "top_p" not in claude_client.request_kwargs
+        and "presence_penalty" not in claude_client.request_kwargs
         and isinstance(gpt_client.request_kwargs, dict)
         and gpt_client.request_kwargs.get("temperature") == 0.2
         and gpt_client.request_kwargs.get("top_p") == 0.7
+        and gpt_client.request_kwargs.get("presence_penalty") == 0.0
     )
     return ok, detail
 
@@ -1521,6 +1523,8 @@ def check_claude_models_skip_sampling_params_in_webfetch_summary() -> tuple[bool
     claude_fetch._summary_api_base = "http://fake"
     claude_fetch._summary_model_name = "anthropic/claude-3-5-sonnet"
     claude_fetch._summary_temperature = 0.3
+    claude_fetch._summary_top_p = 0.8
+    claude_fetch._summary_presence_penalty = 0.2
     claude_result = claude_fetch.call_server([{"role": "user", "content": "Summarize"}], max_retries=1)
 
     gpt_fetch = WebFetch()
@@ -1528,6 +1532,8 @@ def check_claude_models_skip_sampling_params_in_webfetch_summary() -> tuple[bool
     gpt_fetch._summary_api_base = "http://fake"
     gpt_fetch._summary_model_name = "gpt-5.4"
     gpt_fetch._summary_temperature = 0.3
+    gpt_fetch._summary_top_p = 0.8
+    gpt_fetch._summary_presence_penalty = 0.2
     gpt_result = gpt_fetch.call_server([{"role": "user", "content": "Summarize"}], max_retries=1)
 
     detail = json.dumps(
@@ -1543,8 +1549,12 @@ def check_claude_models_skip_sampling_params_in_webfetch_summary() -> tuple[bool
     ok = (
         isinstance(claude_fetch._summary_client.request_kwargs, dict)
         and "temperature" not in claude_fetch._summary_client.request_kwargs
+        and "top_p" not in claude_fetch._summary_client.request_kwargs
+        and "presence_penalty" not in claude_fetch._summary_client.request_kwargs
         and isinstance(gpt_fetch._summary_client.request_kwargs, dict)
         and gpt_fetch._summary_client.request_kwargs.get("temperature") == 0.3
+        and gpt_fetch._summary_client.request_kwargs.get("top_p") == 0.8
+        and gpt_fetch._summary_client.request_kwargs.get("presence_penalty") == 0.2
     )
     return ok, detail
 

@@ -503,16 +503,16 @@ class MultiTurnReactAgent(BaseAgent):
                         temperature if temperature is not None else self.llm_generate_cfg.get("temperature", 0.6)
                     ),
                     top_p=top_p if top_p is not None else self.llm_generate_cfg.get("top_p", 0.95),
+                    presence_penalty=(
+                        presence_penalty
+                        if presence_penalty is not None
+                        else self.llm_generate_cfg.get("presence_penalty", 1.1)
+                    ),
                 )
                 if include_native_tools and self._native_tools:
                     request_kwargs["tools"] = self._native_tools
                     request_kwargs["tool_choice"] = "auto"
                     request_kwargs["parallel_tool_calls"] = True
-                request_kwargs["presence_penalty"] = (
-                    presence_penalty
-                    if presence_penalty is not None
-                    else self.llm_generate_cfg.get("presence_penalty", 1.1)
-                )
                 chat_response = request_client.chat.completions.create(**request_kwargs)
                 choice = chat_response.choices[0]
                 message = choice.message
