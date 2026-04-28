@@ -521,43 +521,13 @@ def check_reasoning_content_is_preserved_across_invalid_retry_turns() -> tuple[b
             if self._turn == 1:
                 return {
                     "status": "ok",
-                    "finish_reason": "tool_calls",
-                    "content": "I have already solved it.",
-                    "tool_calls": [
-                        {
-                            "id": "call_write_plan",
-                            "type": "function",
-                            "function": {
-                                "name": "Write",
-                                "arguments": json.dumps(
-                                    {
-                                        "path": "outputs/marker.txt",
-                                        "content": "tool completed\n",
-                                    }
-                                ),
-                            },
-                        }
-                    ],
+                    "finish_reason": "stop",
+                    "content": "<answer>I have already solved it.</answer>",
+                    "tool_calls": [],
                     "reasoning_content": "deepseek-invalid-turn-reasoning",
                     "raw_message": {
                         "role": "assistant",
-                        "content": "I have already solved it.",
-                        "tool_calls": [
-                            {
-                                "id": "call_write_plan",
-                                "type": "function",
-                                "function": {
-                                    "name": "Write",
-                                    "arguments": json.dumps(
-                                        {
-                                            "path": "outputs/marker.txt",
-                                            "content": "tool completed\n",
-                                        }
-                                    ),
-                                },
-                                "index": 0,
-                            }
-                        ],
+                        "content": "<answer>I have already solved it.</answer>",
                         "reasoning_content": "deepseek-invalid-turn-reasoning",
                     },
                 }
@@ -577,7 +547,7 @@ def check_reasoning_content_is_preserved_across_invalid_retry_turns() -> tuple[b
             msg
             for msg in assistant_messages
             if msg.get("reasoning_content") == "deepseek-invalid-turn-reasoning"
-            and msg.get("content") == "I have already solved it."
+            and msg.get("content") == "<answer>I have already solved it.</answer>"
             and not msg.get("tool_calls")
         ),
         None,
@@ -596,6 +566,119 @@ def check_reasoning_content_is_preserved_across_invalid_retry_turns() -> tuple[b
         session.get("termination") == "result"
         and session.get("result_text") == "done"
         and preserved_message is not None
+    )
+    return ok, detail
+
+
+def check_mixed_text_and_tool_calls_are_executed() -> tuple[bool, str]:
+    from agent_base.react_agent import MultiTurnReactAgent
+
+    case_dir = TMP_DIR / "mixed_text_tool_calls_allowed"
+    shutil.rmtree(case_dir, ignore_errors=True)
+    case_dir.mkdir(parents=True, exist_ok=True)
+
+    class FakeAgent(MultiTurnReactAgent):
+        def __init__(self):
+            super().__init__(
+                function_list=["Write"],
+                llm={
+                    "model": "fake-model",
+                    "generate_cfg": {
+                        "max_input_tokens": 10000,
+                        "max_retries": 1,
+                        "temperature": 0.0,
+                        "top_p": 1.0,
+                        "presence_penalty": 0.0,
+                    },
+                },
+            )
+            self._turn = 0
+            self.second_round_messages = []
+
+        def call_llm_api(self, msgs, max_tries=10, runtime_deadline=None):
+            self._turn += 1
+            if self._turn == 1:
+                return {
+                    "status": "ok",
+                    "finish_reason": "tool_calls",
+                    "content": "I will write the marker file.",
+                    "tool_calls": [
+                        {
+                            "id": "call_write_marker",
+                            "type": "function",
+                            "function": {
+                                "name": "Write",
+                                "arguments": json.dumps(
+                                    {
+                                        "path": "outputs/marker.txt",
+                                        "content": "mixed turn executed\n",
+                                    }
+                                ),
+                            },
+                        }
+                    ],
+                    "reasoning_content": "mixed-turn-reasoning",
+                    "raw_message": {
+                        "role": "assistant",
+                        "content": "I will write the marker file.",
+                        "tool_calls": [
+                            {
+                                "id": "call_write_marker",
+                                "type": "function",
+                                "function": {
+                                    "name": "Write",
+                                    "arguments": json.dumps(
+                                        {
+                                            "path": "outputs/marker.txt",
+                                            "content": "mixed turn executed\n",
+                                        }
+                                    ),
+                                },
+                                "index": 0,
+                            }
+                        ],
+                        "reasoning_content": "mixed-turn-reasoning",
+                    },
+                }
+            self.second_round_messages = msgs
+            return {
+                "status": "ok",
+                "finish_reason": "stop",
+                "content": "done",
+                "tool_calls": [],
+            }
+
+    agent = FakeAgent()
+    session = agent._run_session("Allow mixed text and tool calls", workspace_root=str(case_dir))
+    marker_path = case_dir / "outputs" / "marker.txt"
+    assistant_messages = [msg for msg in agent.second_round_messages if msg.get("role") == "assistant"]
+    mixed_message = next(
+        (
+            msg
+            for msg in assistant_messages
+            if msg.get("content") == "I will write the marker file."
+            and msg.get("reasoning_content") == "mixed-turn-reasoning"
+            and msg.get("tool_calls")
+        ),
+        None,
+    )
+    detail = json.dumps(
+        {
+            "termination": session.get("termination"),
+            "result_text": session.get("result_text"),
+            "marker_exists": marker_path.exists(),
+            "marker_text": marker_path.read_text(encoding="utf-8") if marker_path.exists() else "",
+            "assistant_messages": assistant_messages,
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    ok = (
+        session.get("termination") == "result"
+        and session.get("result_text") == "done"
+        and marker_path.exists()
+        and marker_path.read_text(encoding="utf-8") == "mixed turn executed\n"
+        and mixed_message is not None
     )
     return ok, detail
 
@@ -1478,6 +1561,7 @@ def main() -> int:
         ("DeepSeek ReadImage fallback", check_deepseek_readimage_falls_back_to_text_only_context),
         ("Reasoning content preserved", check_reasoning_content_is_preserved_across_tool_rounds),
         ("Reasoning content preserved on invalid retry", check_reasoning_content_is_preserved_across_invalid_retry_turns),
+        ("Mixed text and tool calls executed", check_mixed_text_and_tool_calls_are_executed),
         ("Reasoning replay error reported", check_reasoning_replay_error_is_reported_without_recovery),
         ("Compact trigger parser", check_compact_trigger_token_parser_supports_k_suffix),
         ("Context compaction persists state", check_context_compaction_persists_summary_and_session_state),

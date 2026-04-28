@@ -927,40 +927,6 @@ class MultiTurnReactAgent(BaseAgent):
                 persist_state(error=protocol_error)
                 continue
 
-            if assistant_tool_calls and assistant_has_meaningful_text(assistant_content):
-                protocol_error = "assistant mixed native tool calls and plain result text"
-                trace_writer.append(
-                    role="assistant",
-                    text=assistant_text.strip(),
-                    turn_index=round_index,
-                    tool_call_ids=assistant_tool_call_ids,
-                    tool_names=assistant_tool_names,
-                    tool_arguments=assistant_tool_arguments,
-                    finish_reason=finish_reason,
-                    error=protocol_error,
-                )
-                retry_assistant_message = assistant_retry_history_message(
-                    content=assistant_content,
-                    reasoning_content=assistant_reasoning,
-                )
-                if retry_assistant_message is not None:
-                    messages.append(retry_assistant_message)
-                correction_text = (
-                    "Error: The previous assistant turn was invalid because it mixed native tool calls and plain result text. "
-                    "A tool-using assistant turn must contain only tool calls and no free-form result text. "
-                    "No tools from that invalid turn were executed. Discard the guessed result text from that turn; it may be wrong and was not accepted. "
-                    "If you still need tools, re-emit only the required tool calls. If no more tools are needed, return only the final result text."
-                )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": correction_text,
-                    }
-                )
-                trace_writer.append(role="user", text=correction_text, turn_index=round_index)
-                persist_state(error=protocol_error)
-                continue
-
             if assistant_tool_calls:
                 trace_writer.append(
                     role="assistant",

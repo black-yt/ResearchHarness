@@ -69,21 +69,17 @@ def load_trace(trace_dir: Path) -> tuple[list[dict], list[str]]:
     return records, collect_tool_names(records)
 
 
-def collect_trace_issues(rows: list[dict]) -> tuple[list[str], bool, bool]:
+def collect_trace_issues(rows: list[dict]) -> tuple[list[str], bool]:
     issues: list[str] = []
-    mixed_turn_protocol_error_seen = False
     other_protocol_error_seen = False
     for row in rows:
         if not isinstance(row, dict):
             continue
         protocol_error = row.get("error")
-        if protocol_error == "assistant mixed native tool calls and plain result text":
-            mixed_turn_protocol_error_seen = True
-            issues.append("assistant_mixed_tool_and_result_text")
-        elif isinstance(protocol_error, str) and protocol_error:
+        if isinstance(protocol_error, str) and protocol_error:
             other_protocol_error_seen = True
             issues.append("assistant_protocol_error")
-    return issues, mixed_turn_protocol_error_seen, other_protocol_error_seen
+    return issues, other_protocol_error_seen
 
 
 def main() -> int:
@@ -135,7 +131,7 @@ def main() -> int:
     distinct_tools_seen = sorted(set(tool_names_seen))
     tool_calls_seen = len(tool_names_seen)
     result_text = final_result_text(trace_rows)
-    trace_issues, mixed_turn_protocol_error_seen, other_protocol_error_seen = collect_trace_issues(trace_rows)
+    trace_issues, other_protocol_error_seen = collect_trace_issues(trace_rows)
     training_trace_valid = training_trace_ok(trace_rows)
 
     result_json = None
@@ -188,7 +184,6 @@ def main() -> int:
         and evidence_used_ok
         and training_trace_valid
         and not trace_issues
-        and not mixed_turn_protocol_error_seen
         and not other_protocol_error_seen
     )
 
