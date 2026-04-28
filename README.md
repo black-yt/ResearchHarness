@@ -156,16 +156,40 @@ Copy `.env.example` to `.env` and fill in the keys you need.
 
 ResearchHarness currently talks to OpenAI-compatible chat-completions APIs. In practice, that means GPT, Gemini, Qwen, GLM, and other model families can be used when they are exposed through a compatible endpoint.
 
-Important variables:
+Required variables:
 
 - `API_KEY`
 - `API_BASE`
 - `MODEL_NAME`
+
+Optional variables:
+
 - `SERPER_KEY_ID`
 - `JINA_API_KEYS`
 - `MINERU_TOKEN`
 - `WORKSPACE_ROOT`
 - `MAX_LLM_CALL_PER_RUN`
+- `MAX_AGENT_ROUNDS`
+- `MAX_AGENT_RUNTIME_SECONDS`
+- `LLM_TIMEOUT_SECONDS`
+- `LLM_MAX_OUTPUT_TOKENS`
+- `MAX_INPUT_TOKENS`
+- `LLM_MAX_RETRIES`
+- `TEMPERATURE`
+- `TOP_P`
+- `PRESENCE_PENALTY`
+- `AUTO_COMPACT_TRIGGER_TOKENS`
+- `IMAGE_PART_TOKEN_ESTIMATE`
+- `LLM_IMAGE_MAX_EDGE`
+- `LLM_IMAGE_MAX_BYTES`
+- `LLM_IMAGE_JPEG_QUALITY`
+- `WEBFETCH_LLM_TIMEOUT_SECONDS`
+- `WEBFETCH_SUMMARY_TEMPERATURE`
+- `VISIT_SERVER_MAX_RETRIES`
+- `DEBUG_AGENT`
+- `DEBUG_SEARCH`
+- `DEBUG_SCHOLAR`
+- `DEBUG_VISIT`
 
 Minimal example:
 
@@ -181,7 +205,7 @@ Capability-specific requirements:
 
 - `WebSearch` / `ScholarSearch` require `SERPER_KEY_ID` from https://serper.dev/
 - `WebFetch` requires `JINA_API_KEYS` from https://jina.ai/
-- `ReadPDF` requires `MINERU_TOKEN` from https://mineru.net/ and `structai`
+- `ReadPDF` requires `MINERU_TOKEN` from https://mineru.net/ and [`structai`](https://github.com/black-yt/structai)
 
 ### 2.5 Extending the Base Agent
 
@@ -557,7 +581,7 @@ Fixed local fixtures live under [test/example_files/](test/example_files).
 ## ⚠️ Known Boundaries
 
 - This repository is a harness runtime, not a security product
-- `ReadPDF` depends on `structai` and `MINERU_TOKEN`
+- `ReadPDF` depends on [`structai`](https://github.com/black-yt/structai) and `MINERU_TOKEN`
 - `ReadImage` currently sends compressed local images as inline `data:` URLs through standard `image_url` request parts
 - The runtime currently expects an OpenAI-compatible chat-completions endpoint
 - Real LLM behavior is still the least deterministic part of the system, even with native tool calling and test coverage

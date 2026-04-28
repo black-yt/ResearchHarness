@@ -36,7 +36,7 @@ The current tool set is:
 | `Glob` | Local files | `pattern`, `path?`, `include_dirs?`, `max_results?` | Discover files or directories by pathname pattern inside the workspace. | Returns `root`, `match_count`, `truncated`, and `results`. Best for pathname discovery rather than reading content. |
 | `Grep` | Local files | `pattern`, `path?`, `glob?`, `case_sensitive?`, `max_results?`, `max_chars?` | Search local text files by content and return matching lines. | Returns search metadata plus matched file paths, line numbers, and line text. Skips obvious binary files, images, and PDFs. |
 | `Read` | Local files | `path`, `start_line?`, `end_line?`, `max_chars?` | Read a local text file, optionally by line range. | Returns normalized path, line metadata, truncation status, and `content`. Redirects PDF/image tasks toward `ReadPDF` or `ReadImage`. |
-| `ReadPDF` | Local files | `path`, `max_chars?`, `max_image_paths?` | Read a local PDF, extract text, and expose extracted image paths when available. | Returns text content plus `image_paths` and image-count metadata. Depends on `structai` and `MINERU_TOKEN`. |
+| `ReadPDF` | Local files | `path`, `max_chars?`, `max_image_paths?` | Read a local PDF, extract text, and expose extracted image paths when available. | Returns text content plus `image_paths` and image-count metadata. Depends on [`structai`](https://github.com/black-yt/structai) and `MINERU_TOKEN`. |
 | `ReadImage` | Local files | `path` | Read a local image and expose image metadata for runtime multimodal use. | Returns image metadata only. During agent runs, the runtime sends a compressed attachment to the LLM API as an `image_url` content part. |
 | `Write` | Local files | `path`, `content`, `overwrite?` | Create a text file or overwrite one when explicitly allowed. | Creates parent directories automatically. Returns an error if the file exists and `overwrite=false`. |
 | `Edit` | Local files | `path`, `patch` | Apply a targeted patch to a local text file. | Expects unified-diff / hunk-style input. Context-based matching, not a full `patch(1)` implementation. |
@@ -153,10 +153,10 @@ Arguments:
 
 Behavior:
 
-- Calls `structai.read_pdf(...)` underneath.
+- Calls `structai.read_pdf(...)` from [`structai`](https://github.com/black-yt/structai) underneath.
 - Uses the returned `text` and `img_paths`.
 - Depends on `MINERU_TOKEN`.
-- If `structai` is missing, returns a clear dependency error instead of breaking unrelated file tools.
+- If [`structai`](https://github.com/black-yt/structai) is missing, returns a clear dependency error instead of breaking unrelated file tools.
 - For PDF figure tasks, prefer `ReadPDF` first to discover extracted text and extracted image paths, then use `ReadImage` on the actual extracted image file.
 
 Returns:
