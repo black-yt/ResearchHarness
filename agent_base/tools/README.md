@@ -341,7 +341,7 @@ Dependencies:
 - `JINA_API_KEYS`
 - `API_KEY`
 - `API_BASE`
-- `SUMMARY_MODEL_NAME`
+- `MODEL_NAME`
 
 Returns:
 

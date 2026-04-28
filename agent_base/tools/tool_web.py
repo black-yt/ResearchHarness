@@ -15,7 +15,6 @@ from agent_base.prompt import EXTRACTOR_PROMPT
 from agent_base.tools.tooling import ToolBase
 from agent_base.utils import PROJECT_ROOT, env_flag, load_dotenv
 
-DEFAULT_SUMMARY_MODEL_NAME = "gpt-5.4"
 DEFAULT_WEBFETCH_TIMEOUT_SECONDS = 600.0
 DEFAULT_WEBFETCH_SUMMARY_TEMPERATURE = 0.0
 
@@ -318,10 +317,7 @@ class WebFetch(ToolBase):
         super().__init__(cfg)
         self._summary_client: Optional[OpenAI] = None
         self._summary_api_base: Optional[str] = None
-        self._summary_model_name = os.environ.get(
-            "SUMMARY_MODEL_NAME",
-            os.environ.get("MODEL_NAME", DEFAULT_SUMMARY_MODEL_NAME),
-        )
+        self._summary_model_name = os.environ.get("MODEL_NAME", "").strip()
         self._summary_timeout_seconds = float(
             os.getenv("WEBFETCH_LLM_TIMEOUT_SECONDS", os.getenv("LLM_TIMEOUT_SECONDS", str(DEFAULT_WEBFETCH_TIMEOUT_SECONDS)))
         )
@@ -333,10 +329,7 @@ class WebFetch(ToolBase):
         if self._summary_client is not None:
             return self._summary_client
         self._summary_api_base = os.environ.get("API_BASE")
-        self._summary_model_name = os.environ.get(
-            "SUMMARY_MODEL_NAME",
-            os.environ.get("MODEL_NAME", DEFAULT_SUMMARY_MODEL_NAME),
-        )
+        self._summary_model_name = os.environ.get("MODEL_NAME", "").strip()
         self._summary_timeout_seconds = float(
             os.getenv("WEBFETCH_LLM_TIMEOUT_SECONDS", os.getenv("LLM_TIMEOUT_SECONDS", str(DEFAULT_WEBFETCH_TIMEOUT_SECONDS)))
         )
@@ -403,6 +396,8 @@ class WebFetch(ToolBase):
         client = self._ensure_summary_client()
         if client is None or not self._summary_api_base:
             return "[WebFetch] Summary model error: API_BASE is not set."
+        if not self._summary_model_name:
+            return "[WebFetch] Summary model error: MODEL_NAME is not set."
         last_error = "unknown summary-model error"
         for attempt in range(max_retries):
             remaining = self._remaining_budget_seconds(runtime_deadline)

@@ -161,27 +161,27 @@ Important variables:
 - `API_KEY`
 - `API_BASE`
 - `MODEL_NAME`
-- `SUMMARY_MODEL_NAME`
 - `SERPER_KEY_ID`
 - `JINA_API_KEYS`
 - `MINERU_TOKEN`
+- `WORKSPACE_ROOT`
+- `MAX_LLM_CALL_PER_RUN`
 
 Minimal example:
 
 ```env
-API_KEY=your_api_key
-API_BASE=https://your-openai-compatible-endpoint/v1
-MODEL_NAME=gpt-5.4
-# SUMMARY_MODEL_NAME=gpt-5.4
+API_KEY="your_api_key"
+API_BASE="https://your-openai-compatible-endpoint/v1"
+MODEL_NAME="gpt-5.4"
 ```
 
-Sampling defaults, retry policy, and runtime limits live in code. Override them programmatically when needed instead of storing them in `.env`.
+Sampling defaults and retry policy live in code. Override them programmatically when needed instead of storing them in `.env`.
 
 Capability-specific requirements:
 
-- `WebSearch` / `ScholarSearch` require `SERPER_KEY_ID`
-- `WebFetch` requires `JINA_API_KEYS`
-- `ReadPDF` requires `MINERU_TOKEN` and `structai`
+- `WebSearch` / `ScholarSearch` require `SERPER_KEY_ID` from https://serper.dev/
+- `WebFetch` requires `JINA_API_KEYS` from https://jina.ai/
+- `ReadPDF` requires `MINERU_TOKEN` from https://mineru.net/ and `structai`
 
 ### 2.5 Extending the Base Agent
 
