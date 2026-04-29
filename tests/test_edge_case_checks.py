@@ -44,6 +44,21 @@ def check_workspace_root_is_created_when_missing() -> tuple[bool, str]:
     return ok, json.dumps({"resolved": str(resolved), "exists": resolved.exists()}, indent=2)
 
 
+def check_llm_hard_timeout_interrupts_blocking_call() -> tuple[bool, str]:
+    from agent_base.react_agent import LLMHardTimeoutError, llm_hard_timeout
+
+    start = time.time()
+    try:
+        with llm_hard_timeout(0.2):
+            time.sleep(5)
+    except LLMHardTimeoutError as exc:
+        elapsed = time.time() - start
+        ok = elapsed < 1.5
+        return ok, json.dumps({"elapsed_seconds": elapsed, "error": str(exc)}, indent=2)
+    elapsed = time.time() - start
+    return False, json.dumps({"elapsed_seconds": elapsed, "error": "timeout did not fire"}, indent=2)
+
+
 def check_readpdf_relative_image_path() -> tuple[bool, str]:
     from agent_base.tools.tool_file import ReadPDF
 
@@ -1578,6 +1593,7 @@ def main() -> int:
         ("ReadPDF relative image path", check_readpdf_relative_image_path),
         ("TerminalInterrupt remainder", check_terminal_interrupt_preserves_remainder),
         ("Agent runtime limit", check_agent_runtime_limit_on_tool_execution),
+        ("LLM hard timeout", check_llm_hard_timeout_interrupts_blocking_call),
         ("Parallel ReadImage tool order", check_parallel_readimage_tool_message_order),
         ("DeepSeek ReadImage fallback", check_deepseek_readimage_falls_back_to_text_only_context),
         ("Reasoning content preserved", check_reasoning_content_is_preserved_across_tool_rounds),

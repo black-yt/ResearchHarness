@@ -1,7 +1,10 @@
 import argparse
+from contextlib import contextmanager
 import json
 import os
+import signal
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Type
 
@@ -58,6 +61,36 @@ DEFAULT_TEMPERATURE = 0.6
 DEFAULT_TOP_P = 0.95
 DEFAULT_PRESENCE_PENALTY = 1.1
 DEFAULT_LLM_TIMEOUT_SECONDS = 600.0
+
+
+class LLMHardTimeoutError(TimeoutError):
+    pass
+
+
+@contextmanager
+def llm_hard_timeout(timeout_seconds: float):
+    if (
+        timeout_seconds <= 0
+        or threading.current_thread() is not threading.main_thread()
+        or not hasattr(signal, "SIGALRM")
+    ):
+        yield
+        return
+
+    def _handle_timeout(signum, frame):
+        raise LLMHardTimeoutError(f"LLM request exceeded hard timeout of {timeout_seconds:.1f}s")
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    signal.signal(signal.SIGALRM, _handle_timeout)
+    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            signal.setitimer(signal.ITIMER_REAL, previous_timer[0], previous_timer[1])
 
 
 def today_date():
@@ -484,11 +517,12 @@ class MultiTurnReactAgent(BaseAgent):
             try:
                 if debug_enabled():
                     print(f"--- Attempting to call the service, try {attempt + 1}/{max_tries} ---")
-                request_client = (
-                    self._llm_client.with_options(timeout=min(self._llm_timeout_seconds, max(remaining, 0.001)))
+                request_timeout = (
+                    min(self._llm_timeout_seconds, max(remaining, 0.001))
                     if remaining is not None
-                    else self._llm_client
+                    else self._llm_timeout_seconds
                 )
+                request_client = self._llm_client.with_options(timeout=request_timeout)
                 request_kwargs = dict(
                     model=self.model,
                     messages=msgs,
@@ -515,7 +549,8 @@ class MultiTurnReactAgent(BaseAgent):
                     request_kwargs["tools"] = self._native_tools
                     request_kwargs["tool_choice"] = "auto"
                     request_kwargs["parallel_tool_calls"] = True
-                chat_response = request_client.chat.completions.create(**request_kwargs)
+                with llm_hard_timeout(request_timeout):
+                    chat_response = request_client.chat.completions.create(**request_kwargs)
                 choice = chat_response.choices[0]
                 message = choice.message
                 content = message.content
@@ -541,7 +576,7 @@ class MultiTurnReactAgent(BaseAgent):
                     if debug_enabled():
                         print(f"Warning: Attempt {attempt + 1} received an empty response.")
 
-            except (APIError, APIConnectionError, APITimeoutError) as e:
+            except (APIError, APIConnectionError, APITimeoutError, LLMHardTimeoutError) as e:
                 last_error = str(e)
                 if debug_enabled():
                     print(f"Error: Attempt {attempt + 1} failed with an API or network error: {e}")
