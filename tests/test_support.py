@@ -21,7 +21,7 @@ from agent_base.utils import load_dotenv
 
 WORKSPACE_ROOT = ROOT / "workspace"
 TEST_RUNS_DIR = WORKSPACE_ROOT / "test_runs"
-EXAMPLE_FILES_DIR = ROOT / "test" / "example_files"
+EXAMPLE_FILES_DIR = ROOT / "tests" / "example_files"
 EXAMPLE_TEXT_FILES_DIR = EXAMPLE_FILES_DIR / "files"
 EXAMPLE_IMAGE_DIR = EXAMPLE_FILES_DIR / "images"
 EXAMPLE_PDF_DIR = EXAMPLE_FILES_DIR / "pdfs"

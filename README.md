@@ -484,52 +484,52 @@ RESEARCHHARNESS_TEST_PYTHON="/path/to/your/python"
 ### Tool availability
 
 ```bash
-python3 test/test_tool_availability.py --json
+python3 tests/test_tool_availability.py --json
 ```
 
 ### Local tool validation
 
 ```bash
-python3 test/test_local_tools_validation.py
+python3 tests/test_local_tools_validation.py
 ```
 
 ### Direct toolchain validation
 
 ```bash
-python3 test/test_toolchain_validation.py
+python3 tests/test_toolchain_validation.py
 ```
 
 ### End-to-end multi-tool test
 
 ```bash
-python3 test/test_end_to_end_multitool.py
+python3 tests/test_end_to_end_multitool.py
 ```
 
 ### End-to-end local file discovery test
 
 ```bash
-python3 test/test_end_to_end_glob_grep.py
+python3 tests/test_end_to_end_glob_grep.py
 ```
 
 ### End-to-end write/edit test
 
 ```bash
-python3 test/test_end_to_end_write_edit.py
+python3 tests/test_end_to_end_write_edit.py
 ```
 
 ### End-to-end terminal-session test
 
 ```bash
-python3 test/test_end_to_end_terminal.py
+python3 tests/test_end_to_end_terminal.py
 ```
 
 ### End-to-end online PDF first-figure test
 
 ```bash
-python3 test/test_end_to_end_pdf_image.py
+python3 tests/test_end_to_end_pdf_image.py
 ```
 
-Fixed local fixtures live under [test/example_files/](test/example_files).
+Fixed local fixtures live under [tests/example_files/](tests/example_files).
 
 ---
 
@@ -558,16 +558,16 @@ Fixed local fixtures live under [test/example_files/](test/example_files).
 
 ### Tests and fixtures
 
-- [test/test_tool_availability.py](test/test_tool_availability.py)
-- [test/test_local_tools_validation.py](test/test_local_tools_validation.py)
-- [test/test_toolchain_validation.py](test/test_toolchain_validation.py)
-- [test/test_end_to_end_multitool.py](test/test_end_to_end_multitool.py)
-- [test/test_end_to_end_glob_grep.py](test/test_end_to_end_glob_grep.py)
-- [test/test_end_to_end_write_edit.py](test/test_end_to_end_write_edit.py)
-- [test/test_end_to_end_terminal.py](test/test_end_to_end_terminal.py)
-- [test/test_end_to_end_pdf_image.py](test/test_end_to_end_pdf_image.py)
-- [test/example_files/](test/example_files)
-- [test/cases/](test/cases)
+- [tests/test_tool_availability.py](tests/test_tool_availability.py)
+- [tests/test_local_tools_validation.py](tests/test_local_tools_validation.py)
+- [tests/test_toolchain_validation.py](tests/test_toolchain_validation.py)
+- [tests/test_end_to_end_multitool.py](tests/test_end_to_end_multitool.py)
+- [tests/test_end_to_end_glob_grep.py](tests/test_end_to_end_glob_grep.py)
+- [tests/test_end_to_end_write_edit.py](tests/test_end_to_end_write_edit.py)
+- [tests/test_end_to_end_terminal.py](tests/test_end_to_end_terminal.py)
+- [tests/test_end_to_end_pdf_image.py](tests/test_end_to_end_pdf_image.py)
+- [tests/example_files/](tests/example_files)
+- [tests/cases/](tests/cases)
 
 ### Runtime workspace
 

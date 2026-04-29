@@ -7,7 +7,7 @@ benchmarks/**/local_*.py
 .idea/
 .vscode/
 .DS_Store
-test/example_files/pdfs/dummy_document
+tests/example_files/pdfs/dummy_document
 .codex
 
 
