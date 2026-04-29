@@ -129,7 +129,7 @@ def normalize_workspace_root(path_value: Optional[Union[str, Path]]) -> Path:
     else:
         path = path.resolve()
     if not path.exists():
-        raise ValueError(f"Workspace directory does not exist: {path}")
+        path.mkdir(parents=True, exist_ok=True)
     if not path.is_dir():
         raise ValueError(f"Workspace directory is not a directory: {path}")
     return path

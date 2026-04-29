@@ -39,5 +39,6 @@ entrypoint.
 - The command should stay one-line and non-interactive.
 - The adapter prevents premature termination on long tasks by refusing to accept
   plain-text completion before `report/report.md` exists in the workspace.
+- The adapter excludes `AskUser`; RCB runs must remain fully non-interactive.
 - Any local batch helpers or ad hoc benchmark scripts should remain untracked
   and live outside the formal integration contract.

@@ -6,6 +6,7 @@ The current implementation is grouped by category:
 
 - `agent_base/tools/tool_file.py`
 - `agent_base/tools/tool_runtime.py`
+- `agent_base/tools/tool_user.py`
 - `agent_base/tools/tool_web.py`
 
 ## Overview
@@ -23,6 +24,7 @@ The current tool set is:
 - `WebSearch`
 - `ScholarSearch`
 - `WebFetch`
+- `AskUser`
 - `TerminalStart`
 - `TerminalWrite`
 - `TerminalRead`
@@ -44,6 +46,7 @@ The current tool set is:
 | `WebSearch` | Web | `query` | Perform general web search over one or more complementary queries. | Returns a text summary headed by `## Web Results` with title, link, snippet, and date/source when available. Uses Serper. |
 | `ScholarSearch` | Web | `query` | Search academic results such as papers, year, abstract, and citations. | Returns a text summary headed by `## Scholar Results` with title, PDF link, publication info, year, citation count, and abstract. Uses Serper Scholar. |
 | `WebFetch` | Web | `url`, `goal` | Fetch a page, extract evidence relevant to a concrete goal, and summarize it. | Uses Jina Reader plus the configured summary model. Returns evidence-focused text rather than raw HTML. |
+| `AskUser` | Human interaction | `question`, `context?` | Ask the human user one concise clarification question when essential information cannot be determined from tools or existing instructions. | Writes the question to the interactive terminal and returns the user's answer. If no interactive terminal is available, returns an explicit unavailable message. |
 | `TerminalStart` | Runtime | `cwd?`, `shell?`, `rows?`, `cols?` | Start a persistent terminal session. | Returns session metadata such as `session_id`, `pid`, `cwd`, `shell`, `alive`, and `returncode`. |
 | `TerminalWrite` | Runtime | `session_id`, `input`, `append_newline?`, `yield_time_ms?`, `max_output_chars?` | Send input to a persistent terminal session and read incremental output. | Best for stateful shells, REPLs, and long-running foreground processes. |
 | `TerminalRead` | Runtime | `session_id`, `yield_time_ms?`, `max_output_chars?` | Read unread output from an existing persistent terminal session. | Useful when a process is still running and output arrives over time. |
@@ -421,6 +424,24 @@ Arguments:
 - `session_id`: string, session id
 - `force`: optional boolean, defaults to `false`
 
+## AskUser
+
+Purpose:
+
+- Ask the human user for essential missing information, preference, or approval.
+- Use only when the answer cannot be determined from workspace files, available tools, or existing instructions.
+
+Arguments:
+
+- `question`: string, concise question to ask.
+- `context`: optional string, brief explanation of why the question is necessary.
+
+Behavior:
+
+- Writes the question to the interactive terminal and waits for one user answer.
+- Returns an explicit unavailable message instead of blocking when no interactive terminal exists.
+- Not available in ResearchClawBench runs.
+
 ## Suggested Usage
 
 - Use `Glob` first for pathname discovery.
@@ -431,5 +452,6 @@ Arguments:
 - Use `Edit` for targeted file changes.
 - Use `Write` for full-file writes.
 - Use `Bash` for one-shot system commands.
+- Use `AskUser` only when a human answer is genuinely necessary.
 - Use `Terminal*` only when persistent interactive shell state is actually needed.
 - Route pure Python analysis through `Bash` rather than introducing a separate Python tool.

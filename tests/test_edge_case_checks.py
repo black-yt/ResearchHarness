@@ -34,6 +34,16 @@ def strip_ansi(text: str) -> str:
     return ANSI_ESCAPE_RE.sub("", text).replace("\r", "")
 
 
+def check_workspace_root_is_created_when_missing() -> tuple[bool, str]:
+    from agent_base.tools.tooling import normalize_workspace_root
+
+    case_dir = TMP_DIR / "workspace_root_auto_create" / "fresh_workspace"
+    shutil.rmtree(case_dir.parent, ignore_errors=True)
+    resolved = normalize_workspace_root(case_dir)
+    ok = resolved == case_dir.resolve() and resolved.is_dir()
+    return ok, json.dumps({"resolved": str(resolved), "exists": resolved.exists()}, indent=2)
+
+
 def check_readpdf_relative_image_path() -> tuple[bool, str]:
     from agent_base.tools.tool_file import ReadPDF
 
@@ -1564,6 +1574,7 @@ def main() -> int:
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
     checks = [
+        ("Workspace root auto-create", check_workspace_root_is_created_when_missing),
         ("ReadPDF relative image path", check_readpdf_relative_image_path),
         ("TerminalInterrupt remainder", check_terminal_interrupt_preserves_remainder),
         ("Agent runtime limit", check_agent_runtime_limit_on_tool_execution),

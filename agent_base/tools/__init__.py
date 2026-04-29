@@ -2,6 +2,7 @@ from importlib import import_module
 
 __all__ = [
     "Bash",
+    "AskUser",
     "Edit",
     "Glob",
     "Grep",
@@ -21,6 +22,7 @@ __all__ = [
 
 _EXPORT_TO_MODULE = {
     "Bash": "agent_base.tools.tool_runtime",
+    "AskUser": "agent_base.tools.tool_user",
     "Edit": "agent_base.tools.tool_file",
     "Glob": "agent_base.tools.tool_file",
     "Grep": "agent_base.tools.tool_file",

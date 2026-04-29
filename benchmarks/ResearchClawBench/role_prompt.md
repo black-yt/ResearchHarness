@@ -9,6 +9,10 @@ report whose claims are traceable to concrete artifacts in the workspace and
 whose methods match the task's named scientific commitments as closely as the
 environment allows.
 
+This benchmark is non-interactive. Do not use `AskUser` or attempt to ask the
+human for clarification. Resolve ambiguity from `INSTRUCTIONS.md`, workspace
+files, related work, and available local or web tools.
+
 ## Method Contract
 
 - Parse the task into explicit methodological commitments early.

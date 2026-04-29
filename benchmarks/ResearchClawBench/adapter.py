@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
-from agent_base.react_agent import MultiTurnReactAgent
+from agent_base.react_agent import AVAILABLE_TOOL_MAP, MultiTurnReactAgent
 from agent_base.tools.tooling import normalize_workspace_root
 
 
@@ -17,6 +17,21 @@ class ResearchClawBenchAgent(MultiTurnReactAgent):
     """
 
     required_report_relpath = Path("report") / "report.md"
+    forbidden_tool_names = {"AskUser"}
+
+    def __init__(self, function_list: Optional[Sequence[str]] = None, *args: Any, **kwargs: Any):
+        if function_list is None:
+            function_list = [
+                tool_name
+                for tool_name in AVAILABLE_TOOL_MAP
+                if tool_name not in self.forbidden_tool_names
+            ]
+        else:
+            function_list = [str(tool_name).strip() for tool_name in function_list if str(tool_name).strip()]
+            forbidden = sorted(set(function_list) & self.forbidden_tool_names)
+            if forbidden:
+                raise ValueError(f"Tools are not allowed in ResearchClawBench runs: {forbidden}")
+        super().__init__(function_list=list(function_list), *args, **kwargs)
 
     def _required_report_path(self, workspace_root: Optional[str]) -> Path:
         workspace = Path(normalize_workspace_root(workspace_root))

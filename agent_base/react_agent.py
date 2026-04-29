@@ -18,6 +18,7 @@ from agent_base.trace_utils import FlatTraceWriter
 from agent_base.tools.tooling import normalize_workspace_root
 from agent_base.tools.tool_file import Edit, Glob, Grep, Read, ReadImage, ReadPDF, Write
 from agent_base.tools.tool_runtime import Bash, TerminalInterrupt, TerminalKill, TerminalRead, TerminalStart, TerminalWrite
+from agent_base.tools.tool_user import AskUser
 from agent_base.tools.tool_web import ScholarSearch, WebFetch, WebSearch
 from agent_base.utils import PROJECT_ROOT, env_flag, load_dotenv, safe_jsonable
 
@@ -37,6 +38,7 @@ AVAILABLE_TOOLS = [
     WebSearch(),
     ScholarSearch(),
     WebFetch(),
+    AskUser(),
     TerminalStart(),
     TerminalWrite(),
     TerminalRead(),

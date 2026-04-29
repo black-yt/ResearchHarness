@@ -27,7 +27,7 @@ def main() -> int:
 
     from agent_base import agent_role
     from agent_base.prompt import SYSTEM_PROMPT
-    from agent_base.react_agent import MultiTurnReactAgent, resolve_agent_class_for_role_prompt_files
+    from agent_base.react_agent import AVAILABLE_TOOL_MAP, MultiTurnReactAgent, resolve_agent_class_for_role_prompt_files
     from benchmarks.ResearchClawBench.adapter import ResearchClawBenchAgent
 
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -78,6 +78,37 @@ def main() -> int:
     rcb_prompt_path = ROOT / "benchmarks" / "ResearchClawBench" / "role_prompt.md"
     resolved_default_cls = resolve_agent_class_for_role_prompt_files([])
     resolved_rcb_cls = resolve_agent_class_for_role_prompt_files([str(rcb_prompt_path)])
+    rcb_agent = ResearchClawBenchAgent(
+        llm={
+            "model": "fake-model",
+            "generate_cfg": {
+                "max_input_tokens": 10000,
+                "max_retries": 1,
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "presence_penalty": 0.0,
+            },
+        },
+        trace_dir=str(trace_dir),
+    )
+    rcb_forbidden_error = ""
+    try:
+        ResearchClawBenchAgent(
+            function_list=["AskUser"],
+            llm={
+                "model": "fake-model",
+                "generate_cfg": {
+                    "max_input_tokens": 10000,
+                    "max_retries": 1,
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                    "presence_penalty": 0.0,
+                },
+            },
+            trace_dir=str(trace_dir),
+        )
+    except ValueError as exc:
+        rcb_forbidden_error = str(exc)
     preview_text = preview(
         json.dumps(
             {
@@ -87,6 +118,9 @@ def main() -> int:
                 "trace_roles": [row.get("role") for row in rows],
                 "default_agent_class": resolved_default_cls.__name__,
                 "rcb_agent_class": resolved_rcb_cls.__name__,
+                "ask_user_available": "AskUser" in AVAILABLE_TOOL_MAP,
+                "rcb_has_ask_user": "AskUser" in rcb_agent.tool_names,
+                "rcb_forbidden_error": rcb_forbidden_error,
                 "system_prompt_tail": system_message[-300:],
             },
             ensure_ascii=False,
@@ -104,6 +138,9 @@ def main() -> int:
         and any(row.get("termination") == "result" for row in rows)
         and resolved_default_cls is MultiTurnReactAgent
         and resolved_rcb_cls is ResearchClawBenchAgent
+        and "AskUser" in AVAILABLE_TOOL_MAP
+        and "AskUser" not in rcb_agent.tool_names
+        and "AskUser" in rcb_forbidden_error
     )
 
     result = AgentExtensionResult(

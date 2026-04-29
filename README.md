@@ -71,6 +71,10 @@ The goal is not novelty for its own sake. The goal is to provide a small, inspec
 
 ## 📰 News
 
+- **2026-04-30: Interactive `AskUser` tool**
+  ResearchHarness now includes an `AskUser` native tool for essential human clarification in interactive runs, while the ResearchClawBench adapter explicitly excludes it to keep benchmark runs non-interactive.
+- **2026-04-30: Workspace roots are created automatically**
+  Explicit `workspace_root` paths are now created at run startup when missing, while tool path resolution still stays bounded inside the workspace.
 - **2026-04-25: Automatic context compaction for long runs**
   ResearchHarness now supports built-in context compaction for long multi-step tasks instead of relying only on a growing raw message list.
 - **2026-04-25: Configurable compaction trigger**
@@ -328,6 +332,10 @@ This makes direct harness runs readable without requiring debug-only logs.
 - `TerminalInterrupt`
 - `TerminalKill`
 
+### Human Interaction
+
+- `AskUser`
+
 More detailed tool documentation lives in [agent_base/tools/README.md](agent_base/tools/README.md).
 
 ```mermaid
@@ -352,6 +360,8 @@ mindmap
       TerminalRead
       TerminalInterrupt
       TerminalKill
+    Human
+      AskUser
 ```
 
 ---
@@ -361,7 +371,7 @@ mindmap
 The harness uses a single workspace concept.
 
 - `WORKSPACE_ROOT` defines the default workspace root when you want an environment-level default
-- `run(..., workspace_root=...)` overrides it for that run
+- `run(..., workspace_root=...)` overrides it for that run and creates the directory if it does not exist
 - relative local file paths resolve from the workspace
 - `Bash` and `TerminalStart` start from the workspace by default
 

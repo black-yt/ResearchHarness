@@ -2,6 +2,7 @@
 
 import json
 import os
+import io
 from dataclasses import asdict, dataclass
 from pathlib import Path
 import re
@@ -35,6 +36,7 @@ def main() -> int:
 
     from agent_base.tools.tool_file import Edit, Glob, Grep, Read, ReadImage, ReadPDF, Write
     from agent_base.tools.tool_runtime import Bash, TerminalInterrupt, TerminalKill, TerminalRead, TerminalStart, TerminalWrite
+    from agent_base.tools.tool_user import AskUser
 
     TMP_DIR.mkdir(parents=True, exist_ok=True)
     file_path = TMP_DIR / "demo.txt"
@@ -132,6 +134,19 @@ def main() -> int:
     tools_called.append("Bash")
     outputs.append(bash_output)
 
+    ask_user_tool = AskUser()
+    ask_user_prompt_output = io.StringIO()
+    ask_user_output = ask_user_tool.call(
+        {
+            "question": "Which validation option should be used?",
+            "context": "Testing controlled AskUser input.",
+        },
+        input_stream=io.StringIO("Use the deterministic option.\n"),
+        output_stream=ask_user_prompt_output,
+    )
+    tools_called.append("AskUser")
+    outputs.append(ask_user_output)
+
     terminal_start = TerminalStart()
     terminal_start_output = terminal_start.call({"cwd": str(TMP_DIR)})
     tools_called.append("TerminalStart")
@@ -217,6 +232,9 @@ def main() -> int:
         and "llm_image_attached: true" in read_image_output
         and "exit_code: 0" in bash_output
         and "hello agent" in bash_output
+        and "User answer" in ask_user_output
+        and "deterministic option" in ask_user_output
+        and "Which validation option should be used?" in ask_user_prompt_output.getvalue()
         and "Started terminal session" in terminal_start_output
         and "Session updated" in terminal_write_output
         and "alpha" in (terminal_write_output + terminal_read_output)
@@ -230,7 +248,7 @@ def main() -> int:
     if ok:
         result = LocalToolsResult(
             status="PASS",
-            detail="Local glob/grep/read/create/edit/bash/terminal/pdf/image tools all executed successfully.",
+            detail="Local glob/grep/read/create/edit/bash/ask-user/terminal/pdf/image tools all executed successfully.",
             tools_called=tools_called,
             output_preview=preview(combined),
         )
