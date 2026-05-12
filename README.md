@@ -35,6 +35,9 @@ and easy to trust as infrastructure.
 ## 📚 Table of Contents
 
 - [📖 Tutorials and Beginner Path](#-tutorials-and-beginner-path)
+- [📰 News](#-news)
+- [✨ Highlights](#-highlights)
+- [🧭 Positioning](#-positioning)
 - [📦 Installation and Configuration](#-installation-and-configuration)
 - [🏗 Project Structure](#-project-structure)
 - [🖥 CLI Usage](#-cli-usage)
@@ -42,9 +45,6 @@ and easy to trust as infrastructure.
 - [🧠 How It Works](#-how-it-works)
 - [🛠 Tool Surface](#-tool-surface)
 - [🧪 Testing](#-testing)
-- [🧭 Positioning](#-positioning)
-- [✨ Highlights](#-highlights)
-- [📰 News](#-news)
 - [⚠️ Boundaries and License](#️-boundaries-and-license)
 
 ---
@@ -63,10 +63,107 @@ workspace layout, API request/response contracts, testing, and troubleshooting.
 If you are new to the project, the recommended reading order is:
 
 1. Read the tutorial in your preferred language.
-2. Complete [Installation and Configuration](#-installation-and-configuration).
-3. Skim [Project Structure](#-project-structure) so you know where the runtime, tools, API server, tests, and benchmark adapters live.
-4. Run either [CLI Usage](#-cli-usage) or [OpenAI-Compatible API Deployment](#-openai-compatible-api-deployment).
-5. Read [How It Works](#-how-it-works) only after you need the runtime loop, trace, compaction, or PDF/image details.
+2. Skim [News](#-news), [Highlights](#-highlights), and [Positioning](#-positioning) to understand what the harness is and what changed recently.
+3. Complete [Installation and Configuration](#-installation-and-configuration).
+4. Skim [Project Structure](#-project-structure) so you know where the runtime, tools, API server, tests, and benchmark adapters live.
+5. Run either [CLI Usage](#-cli-usage) or [OpenAI-Compatible API Deployment](#-openai-compatible-api-deployment).
+6. Read [How It Works](#-how-it-works) only after you need the runtime loop, trace, compaction, or PDF/image details.
+
+---
+
+## 📰 News
+
+- **2026-05-12: OpenAI-compatible API server**
+  ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and uses input/output LLM wrappers to keep agent execution stable and final answers format-compliant.
+- **2026-04-30: Interactive `AskUser` tool**
+  ResearchHarness now includes an `AskUser` native tool for essential human clarification in interactive runs, while the ResearchClawBench adapter explicitly excludes it to keep benchmark runs non-interactive.
+- **2026-04-30: Workspace roots are created automatically**
+  Explicit `workspace_root` paths are now created at run startup when missing, while tool path resolution still stays bounded inside the workspace.
+- **2026-04-25: Automatic context compaction for long runs**
+  ResearchHarness now supports built-in context compaction for long multi-step tasks instead of relying only on a growing raw message list.
+- **2026-04-25: Configurable compaction trigger**
+  The default compaction trigger is `128k`, and you can override it with `AUTO_COMPACT_TRIGGER_TOKENS=16k` or `llm.generate_cfg["compact_trigger_tokens"] = "32k"`.
+- **2026-04-25: Training-ready trace capture**
+  The existing `trace_*.jsonl` format now records full `llm_call` and `compaction` payloads in the same file, so reasoning context, tool environment, and memory-compression steps can all be reused for training or distillation.
+- **2026-04-25: Preserved compact memory**
+  Compaction outputs are still written into session state, and the trace now captures the compaction request/response path as an explicit training event.
+
+---
+
+## ✨ Highlights
+
+- **Native tool calling**
+  The harness uses OpenAI-compatible native tool calling instead of a custom text protocol.
+- **OpenAI-compatible API serving**
+  ResearchHarness can be deployed behind `/v1/chat/completions`, so existing OpenAI SDK clients can call it as a tool-using agent backend.
+- **General model support**
+  The runtime is built around OpenAI-compatible chat-completions APIs, which makes it straightforward to use GPT, Gemini, Qwen, GLM, and other model families when exposed through that interface.
+- **Fair benchmark substrate**
+  The project is well-suited to benchmark evaluation because the runtime contract stays explicit, stable, and lightweight.
+- **Baseline and meta harness**
+  ResearchHarness can act as a reference baseline today and as the harness-under-test when you later optimize prompts, loop policies, tool behavior, or benchmark adapters.
+- **Lightweight but complete**
+  One main loop, a focused tool surface, readable CLI output, and flat traces cover real agent work without turning the repository into a large platform.
+- **Extensible agent base**
+  Upper-layer frameworks can subclass the base ReAct agent and append role-specific prompt blocks without rewriting the execution loop.
+- **Workspace-first execution**
+  Local paths, shell execution, and file discovery all start from one explicit workspace root.
+- **Full tool surface**
+  File discovery, file reads, PDF reads, image inspection, shell execution, and persistent terminal sessions are all available in one compact runtime.
+- **End-to-end evaluation**
+  The repo validates actual multi-step agent behavior, not just isolated tool calls.
+- **PDF-to-figure workflow**
+  `ReadPDF` can expose extracted image paths, and `ReadImage` can inspect the actual extracted figure file.
+
+---
+
+## 🧭 Positioning
+
+ResearchHarness should be understood as a **base harness**: a small execution
+substrate for tool-using LLM agents, not a large workflow platform.
+
+| Area | What ResearchHarness focuses on |
+| --- | --- |
+| Positioning | Foundational harness, not a workflow platform |
+| Models | GPT, Gemini, Qwen, GLM, and other OpenAI-compatible LLMs |
+| Runtime | Small native tool-calling harness loop |
+| Evaluation | Repeatable and benchmark-friendly execution |
+| Extensibility | Base agent plus role-specific prompt addenda |
+| Personal use | Coding, file processing, report writing, and local agent work |
+| Data | Flat JSONL traces for debugging, replay, and optional training reuse |
+
+It is a good fit when you need:
+
+- a common and fair runtime for benchmark evaluation
+- a compact baseline for harness research and optimization
+- a lightweight personal agent for day-to-day work
+- a readable execution loop with real tools and real artifacts
+- a stable interface that is easy to debug and compare
+
+It is intentionally **not** trying to be:
+
+- a large workflow engine
+- a multi-tenant serving platform
+- a deeply abstract orchestration framework
+- a kitchen-sink agent product
+
+Instead, it keeps the core contract small and concrete:
+
+- one main ReAct loop
+- one explicit workspace root
+- one readable CLI entrypoint
+- one flat trace format
+- one focused but capable tool surface
+
+If you need stricter security isolation or product-specific orchestration, those
+should be added as separate layers around the harness rather than folded into
+the core runtime.
+
+| Use | Why ResearchHarness fits |
+| --- | --- |
+| Fair benchmark base | It keeps the runtime contract explicit and lightweight, which is useful for benchmarks such as ResearchClawBench. |
+| Baseline and meta harness | It is small enough to inspect and modify, making it a practical reference baseline and an object of optimization itself. |
+| Personal assistant | It already includes file, shell, PDF, image, and report-oriented workflows, so it is useful outside benchmark settings too. |
 
 ---
 
@@ -670,102 +767,6 @@ RESEARCHHARNESS_TEST_PYTHON="/path/to/your/python"
 | End-to-end online PDF first-figure test | `python3 tests/test_end_to_end_pdf_image.py` |
 
 Fixed local fixtures live under [tests/example_files/](tests/example_files).
-
----
-
-## 🧭 Positioning
-
-ResearchHarness should be understood as a **base harness**: a small execution
-substrate for tool-using LLM agents, not a large workflow platform.
-
-| Area | What ResearchHarness focuses on |
-| --- | --- |
-| Positioning | Foundational harness, not a workflow platform |
-| Models | GPT, Gemini, Qwen, GLM, and other OpenAI-compatible LLMs |
-| Runtime | Small native tool-calling harness loop |
-| Evaluation | Repeatable and benchmark-friendly execution |
-| Extensibility | Base agent plus role-specific prompt addenda |
-| Personal use | Coding, file processing, report writing, and local agent work |
-| Data | Flat JSONL traces for debugging, replay, and optional training reuse |
-
-It is a good fit when you need:
-
-- a common and fair runtime for benchmark evaluation
-- a compact baseline for harness research and optimization
-- a lightweight personal agent for day-to-day work
-- a readable execution loop with real tools and real artifacts
-- a stable interface that is easy to debug and compare
-
-It is intentionally **not** trying to be:
-
-- a large workflow engine
-- a multi-tenant serving platform
-- a deeply abstract orchestration framework
-- a kitchen-sink agent product
-
-Instead, it keeps the core contract small and concrete:
-
-- one main ReAct loop
-- one explicit workspace root
-- one readable CLI entrypoint
-- one flat trace format
-- one focused but capable tool surface
-
-If you need stricter security isolation or product-specific orchestration, those
-should be added as separate layers around the harness rather than folded into
-the core runtime.
-
-| Use | Why ResearchHarness fits |
-| --- | --- |
-| Fair benchmark base | It keeps the runtime contract explicit and lightweight, which is useful for benchmarks such as ResearchClawBench. |
-| Baseline and meta harness | It is small enough to inspect and modify, making it a practical reference baseline and an object of optimization itself. |
-| Personal assistant | It already includes file, shell, PDF, image, and report-oriented workflows, so it is useful outside benchmark settings too. |
-
----
-
-## ✨ Highlights
-
-- **Native tool calling**
-  The harness uses OpenAI-compatible native tool calling instead of a custom text protocol.
-- **OpenAI-compatible API serving**
-  ResearchHarness can be deployed behind `/v1/chat/completions`, so existing OpenAI SDK clients can call it as a tool-using agent backend.
-- **General model support**
-  The runtime is built around OpenAI-compatible chat-completions APIs, which makes it straightforward to use GPT, Gemini, Qwen, GLM, and other model families when exposed through that interface.
-- **Fair benchmark substrate**
-  The project is well-suited to benchmark evaluation because the runtime contract stays explicit, stable, and lightweight.
-- **Baseline and meta harness**
-  ResearchHarness can act as a reference baseline today and as the harness-under-test when you later optimize prompts, loop policies, tool behavior, or benchmark adapters.
-- **Lightweight but complete**
-  One main loop, a focused tool surface, readable CLI output, and flat traces cover real agent work without turning the repository into a large platform.
-- **Extensible agent base**
-  Upper-layer frameworks can subclass the base ReAct agent and append role-specific prompt blocks without rewriting the execution loop.
-- **Workspace-first execution**
-  Local paths, shell execution, and file discovery all start from one explicit workspace root.
-- **Full tool surface**
-  File discovery, file reads, PDF reads, image inspection, shell execution, and persistent terminal sessions are all available in one compact runtime.
-- **End-to-end evaluation**
-  The repo validates actual multi-step agent behavior, not just isolated tool calls.
-- **PDF-to-figure workflow**
-  `ReadPDF` can expose extracted image paths, and `ReadImage` can inspect the actual extracted figure file.
-
----
-
-## 📰 News
-
-- **2026-05-12: OpenAI-compatible API server**
-  ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and uses input/output LLM wrappers to keep agent execution stable and final answers format-compliant.
-- **2026-04-30: Interactive `AskUser` tool**
-  ResearchHarness now includes an `AskUser` native tool for essential human clarification in interactive runs, while the ResearchClawBench adapter explicitly excludes it to keep benchmark runs non-interactive.
-- **2026-04-30: Workspace roots are created automatically**
-  Explicit `workspace_root` paths are now created at run startup when missing, while tool path resolution still stays bounded inside the workspace.
-- **2026-04-25: Automatic context compaction for long runs**
-  ResearchHarness now supports built-in context compaction for long multi-step tasks instead of relying only on a growing raw message list.
-- **2026-04-25: Configurable compaction trigger**
-  The default compaction trigger is `128k`, and you can override it with `AUTO_COMPACT_TRIGGER_TOKENS=16k` or `llm.generate_cfg["compact_trigger_tokens"] = "32k"`.
-- **2026-04-25: Training-ready trace capture**
-  The existing `trace_*.jsonl` format now records full `llm_call` and `compaction` payloads in the same file, so reasoning context, tool environment, and memory-compression steps can all be reused for training or distillation.
-- **2026-04-25: Preserved compact memory**
-  Compaction outputs are still written into session state, and the trace now captures the compaction request/response path as an explicit training event.
 
 ---
 
