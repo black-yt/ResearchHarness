@@ -170,7 +170,7 @@ ResearchHarness currently talks to OpenAI-compatible chat-completions APIs. In p
 > - LLM provider key and endpoint: your OpenAI-compatible provider.
 > - Serper API key for `WebSearch` and `ScholarSearch`: https://serper.dev/
 > - Jina API key for `WebFetch`: https://jina.ai/
-> - MinerU token for `ReadPDF`: https://mineru.net/
+> - MinerU token plus [`structai`](https://github.com/black-yt/structai) for `ReadPDF`: https://mineru.net/
 >
 > Before using ResearchHarness for real tasks, run the full tool availability check and require every tool to pass:
 >
@@ -225,12 +225,6 @@ MINERU_TOKEN="your_mineru_token"
 ```
 
 Sampling defaults and retry policy live in code. Override them programmatically when needed instead of storing them in `.env`.
-
-Required service key sources:
-
-- `WebSearch` / `ScholarSearch` require `SERPER_KEY_ID` from https://serper.dev/
-- `WebFetch` requires `JINA_API_KEYS` from https://jina.ai/
-- `ReadPDF` requires `MINERU_TOKEN` from https://mineru.net/ and [`structai`](https://github.com/black-yt/structai)
 
 ### 2.5 Extending the Base Agent
 
