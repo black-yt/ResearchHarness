@@ -8,13 +8,15 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Models](https://img.shields.io/badge/Models-GPT%20%7C%20Gemini%20%7C%20Qwen%20%7C%20GLM-0f766e.svg)](#-highlights)
 [![Upper Layer](https://img.shields.io/badge/Upper%20Layer-MarkScientist-2563eb.svg)](https://github.com/InternScience/MarkScientist)
-[![Runtime](https://img.shields.io/badge/Runtime-Native%20Tool%20Calling-4f46e5.svg)](#-how-it-works)
-[![Trace](https://img.shields.io/badge/Trace-Flat%20JSONL-0f766e.svg)](#-trace-format)
+[![Runtime](https://img.shields.io/badge/Runtime-Native%20Tool%20Calling-4f46e5.svg)](#-runtime-model)
+[![Trace](https://img.shields.io/badge/Trace-Flat%20JSONL-0f766e.svg)](#-traces-and-compaction)
 [![Benchmark](https://img.shields.io/badge/Benchmark-ResearchClawBench-f59e0b.svg)](https://github.com/InternScience/ResearchClawBench)
 
 </div>
 
-ResearchHarness is a foundational harness for running tool-using LLM agents on real local and web tasks. It is designed to be **general**, **stable**, **fair**, **lightweight**, and **feature-complete**.
+ResearchHarness is a foundational harness for running tool-using LLM agents on
+real local and web tasks. It is designed to be **general**, **stable**,
+**fair**, **lightweight**, and **feature-complete**.
 
 It serves three practical roles:
 
@@ -22,7 +24,9 @@ It serves three practical roles:
 2. a **reference baseline and meta harness** for future harness optimization
 3. a **lightweight personal assistant runtime** for coding, file work, and report writing
 
-The goal is not novelty for its own sake. The goal is to provide a small, inspectable agent harness that is easy to run, easy to compare, easy to extend, and easy to trust as infrastructure.
+The goal is not novelty for its own sake. The goal is to provide a small,
+inspectable agent harness that is easy to run, easy to compare, easy to extend,
+and easy to trust as infrastructure.
 
 **Tutorials:** [English](docs/tutorial_en.md) | [中文](docs/tutorial_zh.md)
 
@@ -33,14 +37,11 @@ The goal is not novelty for its own sake. The goal is to provide a small, inspec
 - [✨ Highlights](#-highlights)
 - [📰 News](#-news)
 - [🧭 Positioning](#-positioning)
-- [📖 Tutorials](#-tutorials)
-- [⚡ Quick Start](#-quick-start)
+- [📦 Installation and Configuration](#-installation-and-configuration)
+- [🖥 CLI Usage](#-cli-usage)
 - [🚀 OpenAI-Compatible API Deployment](#-openai-compatible-api-deployment)
-- [🧠 How It Works](#-how-it-works)
+- [🧠 Runtime Model](#-runtime-model)
 - [🛠 Tool Surface](#-tool-surface)
-- [🗂 Workspace Model](#-workspace-model)
-- [🖼 PDF and Image Flow](#-pdf-and-image-flow)
-- [🧾 Trace Format](#-trace-format)
 - [🧪 Testing](#-testing)
 - [🏗 Project Structure](#-project-structure)
 - [⚠️ Known Boundaries](#️-known-boundaries)
@@ -92,7 +93,12 @@ The goal is not novelty for its own sake. The goal is to provide a small, inspec
 - **2026-04-25: Preserved compact memory**
   Compaction outputs are still written into session state, and the trace now captures the compaction request/response path as an explicit training event.
 
-### At a Glance
+---
+
+## 🧭 Positioning
+
+ResearchHarness should be understood as a **base harness**: a small execution
+substrate for tool-using LLM agents, not a large workflow platform.
 
 | Area | What ResearchHarness focuses on |
 | --- | --- |
@@ -103,12 +109,6 @@ The goal is not novelty for its own sake. The goal is to provide a small, inspec
 | Extensibility | Base agent plus role-specific prompt addenda |
 | Personal use | Coding, file processing, report writing, and local agent work |
 | Data | Flat JSONL traces for debugging, replay, and optional training reuse |
-
----
-
-## 🧭 Positioning
-
-ResearchHarness should be understood as a **base harness**.
 
 It is a good fit when you need:
 
@@ -133,9 +133,11 @@ Instead, it keeps the core contract small and concrete:
 - one flat trace format
 - one focused but capable tool surface
 
-If you need stricter security isolation or product-specific orchestration, those should be added as separate layers around the harness rather than folded into the core runtime.
+If you need stricter security isolation or product-specific orchestration, those
+should be added as separate layers around the harness rather than folded into
+the core runtime.
 
-### Three Common Uses
+### Common Use Cases
 
 | Use | Why ResearchHarness fits |
 | --- | --- |
@@ -143,9 +145,7 @@ If you need stricter security isolation or product-specific orchestration, those
 | Baseline and meta harness | It is small enough to inspect and modify, making it a practical reference baseline and an object of optimization itself. |
 | Personal assistant | It already includes file, shell, PDF, image, and report-oriented workflows, so it is useful outside benchmark settings too. |
 
----
-
-## 📖 Tutorials
+### Tutorials
 
 Detailed tutorials are available in both English and Chinese:
 
@@ -158,9 +158,9 @@ workspace layout, API request/response contracts, testing, and troubleshooting.
 
 ---
 
-## ⚡ Quick Start
+## 📦 Installation and Configuration
 
-### 1. Install
+### Install
 
 Use any Python environment manager you prefer:
 
@@ -175,11 +175,13 @@ Install dependencies:
 python3 -m pip install -r requirements.txt
 ```
 
-### 2. Configure
+### Configure
 
 Copy `.env.example` to `.env` and fill in all required variables.
 
-ResearchHarness currently talks to OpenAI-compatible chat-completions APIs. In practice, that means GPT, Gemini, Qwen, GLM, and other model families can be used when they are exposed through a compatible endpoint.
+ResearchHarness currently talks to OpenAI-compatible chat-completions APIs. In
+practice, that means GPT, Gemini, Qwen, GLM, and other model families can be
+used when they are exposed through a compatible endpoint.
 
 > [!IMPORTANT]
 > **🚨 Required setup before running ResearchHarness**
@@ -245,11 +247,15 @@ JINA_API_KEYS="your_jina_key"
 MINERU_TOKEN="your_mineru_token"
 ```
 
-Sampling defaults and retry policy live in code. Override them programmatically when needed instead of storing them in `.env`.
+Sampling defaults and retry policy live in code. Override them programmatically
+when needed instead of storing them in `.env`.
 
-### 2.5 Extending the Base Agent
+### Extending the Base Agent
 
-The harness keeps the base system prompt focused on tool calling, local execution, and the ReAct loop. Domain-specific frameworks should extend the agent class and append role-specific prompt blocks instead of replacing the base prompt.
+The harness keeps the base system prompt focused on tool calling, local
+execution, and the ReAct loop. Domain-specific frameworks should extend the
+agent class and append role-specific prompt blocks instead of replacing the base
+prompt.
 
 Inspect the base prompt assets:
 
@@ -258,7 +264,9 @@ python3 -m agent_base.prompt --list-assets
 python3 -m agent_base.prompt --show-system
 ```
 
-### 3. Run From the Command Line
+---
+
+## 🖥 CLI Usage
 
 Run the agent from your terminal through the thin top-level entrypoint:
 
@@ -281,7 +289,7 @@ python3 -m agent_base.react_agent "your prompt" --trace-dir ./traces
 When a trace directory is provided, ResearchHarness creates a file named like
 `trace_YYYYMMDD_HHMMSS_<runid>.jsonl` inside that directory.
 You can replace `./traces` with any other trace directory.
-Without `--trace-dir`, CLI runs do not write a trace file.
+Without `--trace-dir`, CLI runs do not write a trace file or `_session_state.json`.
 
 Use an explicit workspace:
 
@@ -289,7 +297,9 @@ Use an explicit workspace:
 python3 -m agent_base.react_agent "summarize this project" --workspace-root ./workspace
 ```
 
-You can replace `./workspace` with any other workspace directory.
+You can replace `./workspace` with any other workspace directory. CLI mode uses
+`--workspace-root` directly as the agent-visible workspace; it does not create
+per-run `agent_workspace/` or `agent_trace/` subdirectories inside it.
 
 Run with one extra role-prompt file appended to the base prompt:
 
@@ -298,6 +308,20 @@ python3 -m agent_base.react_agent "review this artifact" \
   --workspace-root ./workspace \
   --role-prompt-file /path/to/role_prompt.md
 ```
+
+### CLI Output
+
+The CLI is not limited to a final one-line answer. During execution it prints:
+
+- model name
+- workspace root
+- prompt
+- per-round assistant output
+- tool calls
+- tool results
+- runtime correction messages when a turn is invalid
+
+This makes direct harness runs readable without requiring debug-only logs.
 
 ---
 
@@ -355,10 +379,12 @@ python3 serve_openai.py \
   --role-prompt-file benchmarks/QA/role_prompt.md
 ```
 
-Wrapper controls:
+### Wrapper Modes
 
-- `--input-wrapper` / `--no-input-wrapper`: enable or disable the LLM pass that rewrites user input into a stable agent task. Enabled by default.
-- `--output-wrapper` / `--no-output-wrapper`: enable or disable the LLM pass that formats the agent result to the requested answer contract. Enabled by default.
+The API server has two optional LLM wrapper passes. Both are enabled by default.
+
+- `--input-wrapper` / `--no-input-wrapper`: enable or disable the LLM pass that rewrites user input into a stable agent task.
+- `--output-wrapper` / `--no-output-wrapper`: enable or disable the LLM pass that formats the agent result to the requested answer contract.
 
 Strict-format benchmark mode usually keeps both wrappers on:
 
@@ -389,6 +415,8 @@ python3 serve_openai.py \
   --output-wrapper
 ```
 
+### Text Request
+
 Use the normal OpenAI SDK from another terminal, application, or benchmark
 runner:
 
@@ -406,6 +434,8 @@ response = client.chat.completions.create(
 
 print(response.choices[0].message.content)
 ```
+
+### Multimodal Request
 
 Multimodal requests use OpenAI-style content parts. The first API version
 supports `data:image/...;base64,...` image URLs.
@@ -448,12 +478,18 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+For multimodal API requests, the image content is passed directly to the backend
+model when the selected model supports image parts. The same image is also saved
+under `agent_workspace/inputs/images/` so the agent can refer to a stable local
+path during tool work.
+
+### API Execution Flow
+
 API execution uses three stages:
 
 - Input wrapper: separates the task from strict output-format instructions.
 - ResearchHarness agent: solves the task with tools and an isolated workspace.
-- Output wrapper: formats the agent result to match the user's requested answer
-  contract.
+- Output wrapper: formats the agent result to match the user's requested answer contract.
 
 ```mermaid
 flowchart LR
@@ -470,9 +506,10 @@ files, inspect images, run tools, and return one clean final answer.
 
 ---
 
-## 🧠 How It Works
+## 🧠 Runtime Model
 
-ResearchHarness follows a deliberately simple harness loop so that execution stays readable and benchmark behavior stays comparable:
+ResearchHarness follows a deliberately simple harness loop so that execution
+stays readable and benchmark behavior stays comparable:
 
 ```mermaid
 flowchart TD
@@ -497,27 +534,120 @@ Properties:
 - `workspace_root`: optional workspace root
 - return value: exactly one final text string
 
-Model config, retry policy, trace directory, and runtime controls are initialization-time settings, not `run(...)` arguments.
+Model config, retry policy, trace directory, and runtime controls are
+initialization-time settings, not `run(...)` arguments.
 
-### 🖥 CLI Output
+### Workspace Model
 
-The CLI is not limited to a final one-line answer.
+The harness uses a single workspace concept in direct agent runs.
 
-During execution it prints:
+- `WORKSPACE_ROOT` defines the default workspace root when you want an environment-level default
+- `run(..., workspace_root=...)` overrides it for that run and creates the directory if it does not exist
+- relative local file paths resolve from the workspace
+- `Bash` and `TerminalStart` start from the workspace by default
 
-- model name
-- workspace root
+The repository includes committed [workspace/.gitkeep](workspace/.gitkeep),
+[api_runs/.gitkeep](api_runs/.gitkeep), and [traces/.gitkeep](traces/.gitkeep)
+files so these runtime roots exist in Git, while artifacts inside them remain
+ignored.
+
+### Traces and Compaction
+
+Traces are written as a flat JSONL event stream.
+
+Every row uses the same keys:
+
+- `run_id`
+- `event_index`
+- `turn_index`
+- `timestamp`
+- `model_name`
+- `workspace_root`
+- `role`
+- `text`
+- `tool_call_ids`
+- `tool_names`
+- `tool_arguments`
+- `finish_reason`
+- `termination`
+- `error`
+- `image_paths`
+- `capture_type`
+- `payload`
+
+The trace includes:
+
+- system prompt
 - prompt
-- per-round assistant output
-- tool calls
+- assistant tool-call turns
 - tool results
-- runtime correction messages when a turn is invalid
+- runtime-injected messages
+- final assistant text
 
-This makes direct harness runs readable without requiring debug-only logs.
+When tracing is enabled, `_session_state.json` is written next to the trace file.
+Without `--trace-dir`, CLI runs do not write either file. API deployment mode
+always writes trace records under each run's `agent_trace/` directory.
+
+Why flat traces?
+
+- easier to replay
+- easier to diff
+- easier to inspect during evaluation and debugging
+- no secondary export format required
+
+Training-oriented capture is stored in the same JSONL stream:
+
+- `capture_type = "llm_call"`
+  stores the exact request messages sent to the model and the structured model response
+- `capture_type = "compaction"`
+  stores the pre-compaction messages, summary request, summary response, resulting compact memory, and post-compaction message state
+
+This keeps the trace filename and flat JSONL contract unchanged while making the
+same file usable for debugging, replay, benchmark inspection, and optional
+step-level training or distillation.
+
+Long runs can trigger automatic context compaction before the input budget is
+exhausted. By default, the trigger budget is `128k`. You can override it when
+you want earlier or later compaction:
+
+```bash
+AUTO_COMPACT_TRIGGER_TOKENS=16k python3 run_agent.py "your prompt"
+```
+
+or programmatically:
+
+```python
+llm = {
+    "model": "gpt-5.4",
+    "generate_cfg": {
+        "compact_trigger_tokens": "32k",
+    },
+}
+```
+
+### PDF and Image Flow
+
+`ReadPDF` is designed for PDF structure and extracted content. It returns:
+
+- extracted text
+- extracted local image paths when the parser provides them
+
+Recommended PDF-figure workflow:
+
+1. use `ReadPDF`
+2. inspect the returned `image_paths`
+3. pass the selected image path to `ReadImage`
+
+`ReadImage` returns image metadata and, during the main agent run, attaches a
+compressed image as a standard `image_url` content part for the model request.
+This is the standard OpenAI-compatible multimodal request shape used by this
+repository for local images.
 
 ---
 
 ## 🛠 Tool Surface
+
+More detailed tool documentation lives in [agent_base/tools/README.md](agent_base/tools/README.md).
 
 ### Web and Retrieval
 
@@ -548,8 +678,6 @@ This makes direct harness runs readable without requiring debug-only logs.
 
 - `AskUser`
 
-More detailed tool documentation lives in [agent_base/tools/README.md](agent_base/tools/README.md).
-
 ```mermaid
 mindmap
   root((ResearchHarness Tools))
@@ -578,184 +706,28 @@ mindmap
 
 ---
 
-## 🗂 Workspace Model
-
-The harness uses a single workspace concept.
-
-- `WORKSPACE_ROOT` defines the default workspace root when you want an environment-level default
-- `run(..., workspace_root=...)` overrides it for that run and creates the directory if it does not exist
-- relative local file paths resolve from the workspace
-- `Bash` and `TerminalStart` start from the workspace by default
-
-The repository includes committed [workspace/.gitkeep](workspace/.gitkeep), [api_runs/.gitkeep](api_runs/.gitkeep), and [traces/.gitkeep](traces/.gitkeep) files so these runtime roots exist in Git, while artifacts inside them remain ignored.
-
----
-
-## 🖼 PDF and Image Flow
-
-### `ReadPDF`
-
-`ReadPDF` is designed for PDF structure and extracted content. It returns:
-
-- extracted text
-- extracted local image paths when the parser provides them
-
-Recommended PDF-figure workflow:
-
-1. use `ReadPDF`
-2. inspect the returned `image_paths`
-3. pass the selected image path to `ReadImage`
-
-### `ReadImage`
-
-`ReadImage` returns image metadata and, during the main agent run, attaches a compressed image as a standard `image_url` content part for the model request.
-
-This is the standard OpenAI-compatible multimodal request shape used by this repository for local images.
-
----
-
-## 🧾 Trace Format
-
-Traces are written as a flat JSONL event stream.
-
-Every row uses the same keys:
-
-- `run_id`
-- `event_index`
-- `turn_index`
-- `timestamp`
-- `model_name`
-- `workspace_root`
-- `role`
-- `text`
-- `tool_call_ids`
-- `tool_names`
-- `tool_arguments`
-- `finish_reason`
-- `termination`
-- `error`
-- `image_paths`
-- `capture_type`
-- `payload`
-
-### Why flat traces?
-
-- easier to replay
-- easier to diff
-- easier to inspect during evaluation and debugging
-- no secondary export format required
-
-The trace includes:
-
-- system prompt
-- prompt
-- assistant tool-call turns
-- tool results
-- runtime-injected messages
-- final assistant text
-
-It also now supports training-oriented captures in the same file:
-
-- `capture_type = "llm_call"`
-  stores the exact request messages sent to the model and the structured model response
-- `capture_type = "compaction"`
-  stores the pre-compaction messages, summary request, summary response, resulting compact memory, and post-compaction message state
-
-This keeps the trace filename and flat JSONL contract unchanged while making the same file usable for:
-
-- debugging
-- replay
-- benchmark inspection
-- step-level training and distillation
-
-In practice, this means the harness can be used not only to run agents, but also to archive real tool-using trajectories for later analysis or optional training reuse.
-
-### Auto Compaction
-
-Long runs can trigger automatic context compaction before the input budget is exhausted.
-
-By default, the trigger budget is `128k`. You can override it when you want earlier or later compaction:
-
-```bash
-AUTO_COMPACT_TRIGGER_TOKENS=16k python3 run_agent.py "your prompt"
-```
-
-or programmatically:
-
-```python
-llm = {
-    "model": "gpt-5.4",
-    "generate_cfg": {
-        "compact_trigger_tokens": "32k",
-    },
-}
-```
-
----
-
 ## 🧪 Testing
 
 The harness includes both tool-level checks and end-to-end agent tests.
 
-Test scripts default to the current interpreter. If you want child processes to use a specific interpreter, set:
+Test scripts default to the current interpreter. If you want child processes to
+use a specific interpreter, set:
 
 ```bash
 RESEARCHHARNESS_TEST_PYTHON="/path/to/your/python"
 ```
 
-### Tool availability
-
-```bash
-python3 tests/test_tool_availability.py --json
-```
-
-### Local tool validation
-
-```bash
-python3 tests/test_local_tools_validation.py
-```
-
-### Direct toolchain validation
-
-```bash
-python3 tests/test_toolchain_validation.py
-```
-
-### OpenAI-compatible API checks
-
-```bash
-python3 tests/test_openai_api_checks.py
-```
-
-### End-to-end multi-tool test
-
-```bash
-python3 tests/test_end_to_end_multitool.py
-```
-
-### End-to-end local file discovery test
-
-```bash
-python3 tests/test_end_to_end_glob_grep.py
-```
-
-### End-to-end write/edit test
-
-```bash
-python3 tests/test_end_to_end_write_edit.py
-```
-
-### End-to-end terminal-session test
-
-```bash
-python3 tests/test_end_to_end_terminal.py
-```
-
-### End-to-end online PDF first-figure test
-
-```bash
-python3 tests/test_end_to_end_pdf_image.py
-```
+| Test | Command |
+| --- | --- |
+| Tool availability | `python3 tests/test_tool_availability.py --json` |
+| Local tool validation | `python3 tests/test_local_tools_validation.py` |
+| Direct toolchain validation | `python3 tests/test_toolchain_validation.py` |
+| OpenAI-compatible API checks | `python3 tests/test_openai_api_checks.py` |
+| End-to-end multi-tool test | `python3 tests/test_end_to_end_multitool.py` |
+| End-to-end local file discovery test | `python3 tests/test_end_to_end_glob_grep.py` |
+| End-to-end write/edit test | `python3 tests/test_end_to_end_write_edit.py` |
+| End-to-end terminal-session test | `python3 tests/test_end_to_end_terminal.py` |
+| End-to-end online PDF first-figure test | `python3 tests/test_end_to_end_pdf_image.py` |
 
 Fixed local fixtures live under [tests/example_files/](tests/example_files).
 
@@ -774,22 +746,23 @@ Fixed local fixtures live under [tests/example_files/](tests/example_files).
 - [agent_base/trace_utils.py](agent_base/trace_utils.py)
 - [agent_base/console_utils.py](agent_base/console_utils.py)
 
-### Benchmark integration
-
-- [benchmarks/README.md](benchmarks/README.md)
-- [benchmarks/](benchmarks)
-
-### Tutorials
-
-- [docs/tutorial_en.md](docs/tutorial_en.md)
-- [docs/tutorial_zh.md](docs/tutorial_zh.md)
-
 ### Tools
 
 - [agent_base/tools/tool_file.py](agent_base/tools/tool_file.py)
 - [agent_base/tools/tool_runtime.py](agent_base/tools/tool_runtime.py)
 - [agent_base/tools/tool_web.py](agent_base/tools/tool_web.py)
 - [agent_base/tools/README.md](agent_base/tools/README.md)
+
+### Benchmark integration
+
+- [benchmarks/README.md](benchmarks/README.md)
+- [benchmarks/](benchmarks)
+- [benchmarks/QA/README.md](benchmarks/QA/README.md)
+
+### Tutorials
+
+- [docs/tutorial_en.md](docs/tutorial_en.md)
+- [docs/tutorial_zh.md](docs/tutorial_zh.md)
 
 ### Tests and fixtures
 
@@ -805,9 +778,11 @@ Fixed local fixtures live under [tests/example_files/](tests/example_files).
 - [tests/example_files/](tests/example_files)
 - [tests/cases/](tests/cases)
 
-### Runtime workspace
+### Runtime roots
 
 - [workspace/](workspace)
+- [api_runs/](api_runs)
+- [traces/](traces)
 
 ---
 
