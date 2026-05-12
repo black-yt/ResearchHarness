@@ -326,11 +326,11 @@ Each request creates:
   run_YYYYMMDD_HHMMSS_<random>/
     agent_workspace/    # visible to the agent; Bash, Read, Write, ls, and cat start here
       inputs/images/    # user-provided images, when present
-    records/            # API trace and agent trace files
+    agent_traces/       # API trace, agent trace, and session state files
 ```
 
 In deployment mode, traces are saved by default. Each request writes API wrapper
-records and agent traces into that run's `records/` directory.
+events, agent traces, and session state into that run's `agent_traces/` directory.
 
 Default deployment for normal application or personal-assistant use:
 
@@ -338,7 +338,7 @@ Default deployment for normal application or personal-assistant use:
 python3 serve_openai.py \
   --workspace-root ./workspace/api_runs \
   --host 127.0.0.1 \
-  --port 8000
+  --port 8686
 ```
 
 QA/VQA benchmark deployment with the optional benchmark role prompt:
@@ -347,7 +347,7 @@ QA/VQA benchmark deployment with the optional benchmark role prompt:
 python3 serve_openai.py \
   --workspace-root ./workspace/api_runs \
   --host 127.0.0.1 \
-  --port 8000 \
+  --port 8686 \
   --role-prompt-file benchmarks/QA/role_prompt.md
 ```
 
@@ -391,7 +391,7 @@ runner:
 ```python
 from openai import OpenAI
 
-client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8000/v1")
+client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 
 response = client.chat.completions.create(
     model="researchharness",
@@ -420,7 +420,7 @@ buffer = BytesIO()
 image.save(buffer, format="PNG")
 data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
-client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8000/v1")
+client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 
 response = client.chat.completions.create(
     model="researchharness",
@@ -453,19 +453,10 @@ API execution uses three stages:
 
 ```mermaid
 flowchart LR
-    U[OpenAI SDK Client] --> API["/v1/chat/completions"]
-    API --> IW[Input Wrapper LLM]
+    U[User Input] --> IW[Input Wrapper LLM]
     IW --> A[ResearchHarness Agent]
     A --> OW[Output Wrapper LLM]
-    OW --> U
-
-    API --> R[records/]
-    A --> W[agent_workspace/]
-    A --> R
-    IW --> R
-    OW --> R
-
-    W --> I[inputs/images/]
+    OW --> O[Output]
 ```
 
 This keeps the public interface simple for callers while letting ResearchHarness

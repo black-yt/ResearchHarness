@@ -1129,6 +1129,8 @@ def check_context_compaction_persists_summary_and_session_state() -> tuple[bool,
         session.get("termination") == "result"
         and session.get("result_text") == "done"
         and session_state_path.exists()
+        and session_state_path.parent.name == "traces"
+        and not (case_dir / "_session_state.json").exists()
         and session_state.get("model_profile", {}).get("compact_trigger_tokens_override") == 16384
         and len(compactions) == 1
         and compactions[0].get("status") == "ok"
@@ -1263,6 +1265,8 @@ def check_context_compaction_failure_is_recorded_before_hard_stop() -> tuple[boo
 
     class FakeAgent(MultiTurnReactAgent):
         def __init__(self):
+            trace_dir = case_dir / "traces"
+            trace_dir.mkdir(parents=True, exist_ok=True)
             super().__init__(
                 function_list=["Read"],
                 llm={
@@ -1276,6 +1280,7 @@ def check_context_compaction_failure_is_recorded_before_hard_stop() -> tuple[boo
                         "presence_penalty": 0.0,
                     },
                 },
+                trace_dir=str(trace_dir),
             )
             self._turn = 0
             self.compaction_requests = []
@@ -1332,6 +1337,9 @@ def check_context_compaction_failure_is_recorded_before_hard_stop() -> tuple[boo
     ok = (
         isinstance(session.get("termination"), str)
         and session["termination"].startswith("input token limit reached")
+        and session_state_path.exists()
+        and session_state_path.parent.name == "traces"
+        and not (case_dir / "_session_state.json").exists()
         and session_state.get("termination", "").startswith("input token limit reached")
         and len(compactions) == 1
         and compactions[0].get("status") == "error"
@@ -1607,6 +1615,58 @@ def check_claude_models_skip_sampling_params_in_webfetch_summary() -> tuple[bool
     return ok, detail
 
 
+def check_session_state_is_only_written_with_trace_dir() -> tuple[bool, str]:
+    from agent_base.react_agent import MultiTurnReactAgent
+
+    case_dir = TMP_DIR / "session_state_without_trace"
+    shutil.rmtree(case_dir, ignore_errors=True)
+    case_dir.mkdir(parents=True, exist_ok=True)
+
+    class FakeAgent(MultiTurnReactAgent):
+        def __init__(self):
+            super().__init__(
+                function_list=[],
+                llm={
+                    "model": "fake-model",
+                    "generate_cfg": {
+                        "max_input_tokens": 10000,
+                        "max_output_tokens": 512,
+                        "max_retries": 1,
+                        "temperature": 0.0,
+                        "top_p": 1.0,
+                        "presence_penalty": 0.0,
+                    },
+                },
+            )
+
+        def call_llm_api(self, msgs, max_tries=10, runtime_deadline=None):
+            return {
+                "status": "ok",
+                "finish_reason": "stop",
+                "content": "done",
+                "tool_calls": [],
+            }
+
+    agent = FakeAgent()
+    session = agent._run_session("Return done.", workspace_root=str(case_dir))
+    workspace_state_path = case_dir / "_session_state.json"
+    detail = json.dumps(
+        {
+            "termination": session.get("termination"),
+            "session_state_path": session.get("session_state_path"),
+            "workspace_state_exists": workspace_state_path.exists(),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    ok = (
+        session.get("termination") == "result"
+        and session.get("session_state_path") == ""
+        and not workspace_state_path.exists()
+    )
+    return ok, detail
+
+
 def main() -> int:
     bootstrap()
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -1626,6 +1686,7 @@ def main() -> int:
         ("Reasoning replay error reported", check_reasoning_replay_error_is_reported_without_recovery),
         ("Compact trigger parser", check_compact_trigger_token_parser_supports_k_suffix),
         ("Context compaction persists state", check_context_compaction_persists_summary_and_session_state),
+        ("Session state requires trace dir", check_session_state_is_only_written_with_trace_dir),
         ("Context compaction refreshes memory", check_context_compaction_refreshes_existing_memory_without_recursive_summary),
         ("Context compaction failure recorded", check_context_compaction_failure_is_recorded_before_hard_stop),
         ("Double-encoded tool args unwrapped", check_double_encoded_tool_arguments_are_unwrapped),

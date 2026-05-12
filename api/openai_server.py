@@ -82,7 +82,7 @@ class ServerConfig:
     workspace_root: Path
     role_prompt: str = ""
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = 8686
     input_wrapper: bool = True
     output_wrapper: bool = True
 
@@ -376,9 +376,9 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     run_id = "run_" + datetime.datetime.now().astimezone().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8]
     run_root = config.workspace_root / run_id
     agent_workspace = run_root / "agent_workspace"
-    records_dir = run_root / "records"
+    trace_dir = run_root / "agent_traces"
     agent_workspace.mkdir(parents=True, exist_ok=False)
-    records_dir.mkdir(parents=True, exist_ok=False)
+    trace_dir.mkdir(parents=True, exist_ok=False)
     prepared = prepare_openai_input(payload["messages"], agent_workspace)
     llm_config = default_llm_config()
     backend_model = str(llm_config.get("model", ""))
@@ -392,7 +392,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     agent = MultiTurnReactAgent(
         function_list=tool_names,
         llm=llm_config,
-        trace_dir=str(records_dir),
+        trace_dir=str(trace_dir),
         role_prompt=config.role_prompt or None,
     )
 
@@ -401,7 +401,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
         input_wrapper_text = call_wrapper_text(agent, input_wrapper_messages, max_output_tokens=1200)
         input_plan = extract_json_object(input_wrapper_text)
         append_api_event(
-            records_dir,
+            trace_dir,
             "input_wrapper",
             {
                 "enabled": True,
@@ -413,7 +413,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     else:
         input_plan = build_passthrough_input_plan(prepared=prepared, payload=payload)
         append_api_event(
-            records_dir,
+            trace_dir,
             "input_wrapper",
             {
                 "enabled": False,
@@ -429,7 +429,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     )
     agent_result_text = str(session.get("result_text", "")).strip()
     append_api_event(
-        records_dir,
+        trace_dir,
         "agent_result",
         {
             "termination": session.get("termination", ""),
@@ -447,7 +447,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
         )
         final_text = call_wrapper_text(agent, output_wrapper_messages, max_output_tokens=final_max_tokens(payload))
         append_api_event(
-            records_dir,
+            trace_dir,
             "output_wrapper",
             {
                 "enabled": True,
@@ -458,7 +458,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     else:
         final_text = agent_result_text
         append_api_event(
-            records_dir,
+            trace_dir,
             "output_wrapper",
             {
                 "enabled": False,
@@ -504,7 +504,7 @@ def serve(
     *,
     workspace_root: str,
     host: str = "127.0.0.1",
-    port: int = 8000,
+    port: int = 8686,
     role_prompt_files: Optional[list[str]] = None,
     input_wrapper: bool = True,
     output_wrapper: bool = True,

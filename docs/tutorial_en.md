@@ -140,7 +140,7 @@ Default deployment:
 python3 serve_openai.py \
   --workspace-root ./workspace/api_runs \
   --host 127.0.0.1 \
-  --port 8000
+  --port 8686
 ```
 
 QA/VQA benchmark deployment with a role prompt:
@@ -149,7 +149,7 @@ QA/VQA benchmark deployment with a role prompt:
 python3 serve_openai.py \
   --workspace-root ./workspace/api_runs \
   --host 127.0.0.1 \
-  --port 8000 \
+  --port 8686 \
   --role-prompt-file benchmarks/QA/role_prompt.md
 ```
 
@@ -159,7 +159,7 @@ python3 serve_openai.py \
 | --- | --- | --- | --- |
 | `--workspace-root PATH` | yes | none | Parent directory for API runs. Each request gets one subdirectory. |
 | `--host HOST` | no | `127.0.0.1` | Host to bind. |
-| `--port PORT` | no | `8000` | Port to bind. |
+| `--port PORT` | no | `8686` | Port to bind. |
 | `--role-prompt-file PATH` | no, repeatable | none | Append role prompt text to the base ResearchHarness prompt. |
 | `--input-wrapper` / `--no-input-wrapper` | no | enabled | Enable or disable the input LLM wrapper. |
 | `--output-wrapper` / `--no-output-wrapper` | no | enabled | Enable or disable the output LLM wrapper. |
@@ -203,19 +203,10 @@ and format output.
 
 ```mermaid
 flowchart LR
-    U[OpenAI SDK Client] --> API["/v1/chat/completions"]
-    API --> IW[Input Wrapper LLM]
+    U[User Input] --> IW[Input Wrapper LLM]
     IW --> A[ResearchHarness Agent]
     A --> OW[Output Wrapper LLM]
-    OW --> U
-
-    API --> R[records/]
-    A --> W[agent_workspace/]
-    A --> R
-    IW --> R
-    OW --> R
-
-    W --> I[inputs/images/]
+    OW --> O[Output]
 ```
 
 ## 5. API Workspace Layout
@@ -227,7 +218,7 @@ Each API request creates one run directory:
   run_YYYYMMDD_HHMMSS_<random>/
     agent_workspace/
       inputs/images/
-    records/
+    agent_traces/
 ```
 
 Meaning:
@@ -237,11 +228,17 @@ Meaning:
 | `run_YYYYMMDD_HHMMSS_<random>/` | Per-request run root. |
 | `agent_workspace/` | The only workspace visible to the agent. File tools, Bash, `ls`, and `cat` start here. |
 | `agent_workspace/inputs/images/` | User-provided images saved from API requests. |
-| `records/` | API trace, agent trace, and runtime records. |
+| `agent_traces/` | API trace, agent trace, and runtime records. |
 
-This separation keeps user-visible tool work separate from server-side records.
+For multimodal requests, image inputs are handled in two ways at the same time:
+the image content is passed to the backend model as initial multimodal input
+when the selected model supports it, and the same image is saved under
+`agent_workspace/inputs/images/` so the agent can refer to or inspect a stable
+local path during tool work.
+
+This separation keeps user-visible tool work separate from server-side trace files.
 In API deployment mode, traces are saved by default: every request writes
-`api_trace.jsonl` and `trace_*.jsonl` records under that run's `records/`
+`api_trace.jsonl`, `trace_*.jsonl`, and `_session_state.json` under that run's `agent_traces/`
 directory.
 
 ## 6. Text Request with OpenAI SDK
@@ -249,7 +246,7 @@ directory.
 ```python
 from openai import OpenAI
 
-client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8000/v1")
+client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 
 response = client.chat.completions.create(
     model="researchharness",
@@ -283,7 +280,7 @@ buffer = BytesIO()
 image.save(buffer, format="PNG")
 data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
-client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8000/v1")
+client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 
 response = client.chat.completions.create(
     model="researchharness",
@@ -419,10 +416,10 @@ ResearchHarness currently includes:
 CLI runs write traces only when `--trace-dir` is provided. Without
 `--trace-dir`, CLI runs do not write a trace file.
 
-API runs write records under:
+API runs write traces under:
 
 ```text
-./workspace/api_runs/run_.../records/
+./workspace/api_runs/run_.../agent_traces/
 ```
 
 Important files:
@@ -431,7 +428,7 @@ Important files:
 | --- | --- |
 | `api_trace.jsonl` | Input wrapper, agent result, and output wrapper records. |
 | `trace_*.jsonl` | Flat agent runtime trace. |
-| `_session_state.json` | Current session state, written inside the agent workspace. |
+| `_session_state.json` | Current session state, written next to `trace_*.jsonl` when tracing is enabled. |
 
 The trace stores tool calls, tool results, LLM call capture payloads, compaction
 events, errors, and final termination state.

@@ -109,6 +109,7 @@ def main() -> int:
     rows = load_trace_records(trace_path) if trace_path else []
     first_user_content = agent.seen_messages[1]["content"] if len(agent.seen_messages) > 1 else None
     first_user_trace = rows[1].get("text", "") if len(rows) > 1 else ""
+    session_state_path = Path(session.get("session_state_path", ""))
 
     api_runs_root = TMP_DIR / "api_runs"
     fake_seen: dict[str, str] = {}
@@ -175,7 +176,7 @@ def main() -> int:
     run_dirs = sorted(api_runs_root.glob("run_*"))
     api_run_dir = run_dirs[0] if run_dirs else None
     api_agent_workspace = api_run_dir / "agent_workspace" if api_run_dir else None
-    api_records_dir = api_run_dir / "records" if api_run_dir else None
+    api_agent_traces_dir = api_run_dir / "agent_traces" if api_run_dir else None
     api_saved_image = api_agent_workspace / "inputs" / "images" / "image_000.png" if api_agent_workspace else None
 
     ok = (
@@ -191,17 +192,20 @@ def main() -> int:
         and isinstance(first_user_content, list)
         and any(isinstance(part, dict) and part.get("type") == "image_url" for part in first_user_content)
         and "base64 omitted" in first_user_trace
+        and session_state_path.exists()
+        and session_state_path.parent == trace_dir
+        and not (TMP_DIR / "agent_workspace" / "_session_state.json").exists()
         and api_response["choices"][0]["message"]["content"] == '{"expression":"7 + 5","answer":12}'
         and api_run_dir is not None
         and api_agent_workspace is not None
         and api_agent_workspace.is_dir()
-        and api_records_dir is not None
-        and api_records_dir.is_dir()
+        and api_agent_traces_dir is not None
+        and api_agent_traces_dir.is_dir()
         and api_saved_image is not None
         and api_saved_image.exists()
         and Path(fake_seen.get("workspace_root", "")).name == "agent_workspace"
-        and Path(fake_seen.get("trace_dir", "")).name == "records"
-        and (api_records_dir / "api_trace.jsonl").exists()
+        and Path(fake_seen.get("trace_dir", "")).name == "agent_traces"
+        and (api_agent_traces_dir / "api_trace.jsonl").exists()
     )
 
     result = OpenAIAPICheckResult(

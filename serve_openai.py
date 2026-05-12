@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Directory where the server creates one isolated subdirectory per request.",
     )
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind. Defaults to 127.0.0.1.")
-    parser.add_argument("--port", type=int, default=8000, help="Port to bind. Defaults to 8000.")
+    parser.add_argument("--port", type=int, default=8686, help="Port to bind. Defaults to 8686.")
     parser.add_argument(
         "--role-prompt-file",
         action="append",

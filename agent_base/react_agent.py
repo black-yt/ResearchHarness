@@ -749,7 +749,7 @@ class MultiTurnReactAgent(BaseAgent):
             on_event=event_callback,
         )
         self.trace_path = trace_writer.path
-        self.session_state_path = resolve_session_state_path(resolved_workspace_root)
+        self.session_state_path = resolve_session_state_path(trace_dir) if trace_dir else None
         session_state = AgentSessionState(
             run_id=trace_writer.run_id,
             model_name=self.model,
@@ -771,7 +771,8 @@ class MultiTurnReactAgent(BaseAgent):
             session_state.termination = termination
             session_state.error = error
             session_state.capture_messages(messages)
-            persist_session_state(self.session_state_path, session_state)
+            if self.session_state_path:
+                persist_session_state(self.session_state_path, session_state)
 
         def finalize(result_text: str, termination: str, *, role: str = "runtime", error: str = "") -> dict[str, Any]:
             trace_writer.append(
