@@ -9,7 +9,15 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_support import EXAMPLE_TEXT_FILES_DIR, TEST_RUNS_DIR, bootstrap, has_structai, required_test_image, required_test_pdf
+from test_support import (
+    EXAMPLE_TEXT_FILES_DIR,
+    TEST_RUNS_DIR,
+    bootstrap,
+    clear_pdf_parse_cache,
+    has_structai,
+    required_test_image,
+    required_test_pdf,
+)
 
 
 TMP_DIR = TEST_RUNS_DIR / "local_tools_validation"
@@ -105,6 +113,17 @@ def main() -> int:
         result = LocalToolsResult(
             status="FAIL",
             detail="Missing required dependency: structai.",
+            tools_called=tools_called,
+            output_preview=preview("\n\n".join(outputs)),
+        )
+        print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
+        return 1
+    try:
+        clear_pdf_parse_cache(pdf_path)
+    except RuntimeError as exc:
+        result = LocalToolsResult(
+            status="FAIL",
+            detail=str(exc),
             tools_called=tools_called,
             output_preview=preview("\n\n".join(outputs)),
         )

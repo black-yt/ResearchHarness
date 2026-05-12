@@ -12,10 +12,19 @@ from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_support import EXAMPLE_TEXT_FILES_DIR, TEST_RUNS_DIR, bootstrap, has_structai, required_test_image, required_test_pdf
+from test_support import (
+    EXAMPLE_TEXT_FILES_DIR,
+    TEST_RUNS_DIR,
+    bootstrap,
+    clear_pdf_parse_cache,
+    has_structai,
+    required_test_image,
+    required_test_pdf,
+)
 
 
 DEFAULT_VISIT_URL = "https://en.wikipedia.org/wiki/Attention_Is_All_You_Need"
+NETWORK_TOOL_NAMES = {"WebSearch", "ScholarSearch", "WebFetch", "ReadPDF"}
 
 
 def preview(value: Any, limit: int = 500) -> str:
@@ -162,6 +171,7 @@ def test_read_pdf() -> ToolTestResult:
     from agent_base.tools.tool_file import ReadPDF
 
     pdf_path = required_test_pdf()
+    cache_dir = clear_pdf_parse_cache(pdf_path)
     if not has_structai():
         return make_result("ReadPDF", "FAIL", started_at, "Missing required dependency: structai")
 
@@ -170,7 +180,15 @@ def test_read_pdf() -> ToolTestResult:
     text = str(result)
     if "source_type: pdf" not in text or "Dummy PDF file" not in text:
         return make_result("ReadPDF", "FAIL", started_at, "ReadPDF did not return expected PDF content.", text, stdout, stderr)
-    return make_result("ReadPDF", "PASS", started_at, "ReadPDF returned expected PDF content.", text, stdout, stderr)
+    return make_result(
+        "ReadPDF",
+        "PASS",
+        started_at,
+        f"ReadPDF returned expected PDF content after clearing cache: {cache_dir}",
+        text,
+        stdout,
+        stderr,
+    )
 
 
 def test_read_image() -> ToolTestResult:
@@ -422,6 +440,11 @@ def print_human_readable(results: list[ToolTestResult]) -> None:
     passed = sum(result.status == "PASS" for result in results)
     failed = sum(result.status == "FAIL" for result in results)
     print(f"\nSummary: total={total}, passed={passed}, failed={failed}")
+    if any(result.status != "PASS" and result.name in NETWORK_TOOL_NAMES for result in results):
+        print(
+            "\nHint: If WebSearch, ScholarSearch, WebFetch, or ReadPDF fails with network, TLS, "
+            "upload, download, or parsing errors, retry with VPN/proxy disabled."
+        )
 
 
 def parse_args() -> argparse.Namespace:

@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+import shutil
 import sys
 from pathlib import Path
 
@@ -184,6 +185,18 @@ def required_test_pdf() -> Path:
     if not REQUIRED_TEST_PDF.exists():
         raise FileNotFoundError(f"Required test PDF is missing: {REQUIRED_TEST_PDF}")
     return REQUIRED_TEST_PDF
+
+
+def clear_pdf_parse_cache(pdf_path: Path) -> Path:
+    cache_dir = pdf_path.with_suffix("")
+    if cache_dir.exists():
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir)
+        else:
+            cache_dir.unlink()
+    if cache_dir.exists():
+        raise RuntimeError(f"Failed to clear ReadPDF cache directory: {cache_dir}")
+    return cache_dir
 
 
 def main() -> int:

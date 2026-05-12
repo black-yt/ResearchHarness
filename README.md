@@ -179,6 +179,7 @@ ResearchHarness currently talks to OpenAI-compatible chat-completions APIs. In p
 > ```
 >
 > The expected result is all tools passing. Missing credentials, missing dependencies, exhausted service credits, or unavailable external tools should be treated as failures, not skipped checks.
+> If `WebSearch`, `ScholarSearch`, `WebFetch`, or `ReadPDF` fails with network, TLS, upload, download, or parsing errors, retry with VPN/proxy disabled.
 
 Required variables:
 
