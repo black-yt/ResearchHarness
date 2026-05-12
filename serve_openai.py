@@ -25,6 +25,18 @@ def main(argv: list[str] | None = None) -> int:
         dest="role_prompt_files",
         help="Optional role prompt file appended to the base ResearchHarness prompt.",
     )
+    parser.add_argument(
+        "--input-wrapper",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable the input LLM wrapper. Enabled by default.",
+    )
+    parser.add_argument(
+        "--output-wrapper",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable or disable the output LLM wrapper. Enabled by default.",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv(PROJECT_ROOT / ".env")
@@ -35,6 +47,8 @@ def main(argv: list[str] | None = None) -> int:
             host=args.host,
             port=args.port,
             role_prompt_files=list(args.role_prompt_files),
+            input_wrapper=args.input_wrapper,
+            output_wrapper=args.output_wrapper,
         )
     except (MissingRequiredEnvError, ValueError) as exc:
         print(str(exc), file=sys.stderr)

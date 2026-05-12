@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import datetime
 import json
 import re
 import time
@@ -82,6 +83,8 @@ class ServerConfig:
     role_prompt: str = ""
     host: str = "127.0.0.1"
     port: int = 8000
+    input_wrapper: bool = True
+    output_wrapper: bool = True
 
 
 @dataclass
@@ -243,6 +246,25 @@ def build_input_wrapper_messages(*, prepared: PreparedInput, payload: dict[str, 
     ]
 
 
+def build_passthrough_input_plan(*, prepared: PreparedInput, payload: dict[str, Any]) -> dict[str, str]:
+    conversation = "\n\n".join(
+        f"{message['role'].upper()}:\n{message['content']}" for message in prepared.wrapper_messages
+    ).strip()
+    response_format = payload.get("response_format")
+    output_contract = "Follow the final answer requirements in the original request."
+    if response_format is not None:
+        output_contract += "\nOpenAI response_format request:\n" + json.dumps(
+            safe_jsonable(response_format),
+            ensure_ascii=False,
+            indent=2,
+        )
+    return {
+        "agent_instruction": conversation or "Answer the user's request.",
+        "output_contract": output_contract,
+        "wrapper_notes": "Input wrapper disabled; the original normalized conversation was passed through directly.",
+    }
+
+
 def build_agent_prompt(input_plan: dict[str, Any], prepared: PreparedInput) -> str:
     image_block = "\n".join(f"- {path}" for path in prepared.image_paths) if prepared.image_paths else "- none"
     return (
@@ -351,9 +373,13 @@ def append_api_event(workspace_root: Path, event: str, payload: dict[str, Any]) 
 def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[str, Any]:
     payload = validate_chat_payload(payload)
     request_id = "chatcmpl_" + uuid4().hex
-    request_workspace = config.workspace_root / request_id
-    request_workspace.mkdir(parents=True, exist_ok=False)
-    prepared = prepare_openai_input(payload["messages"], request_workspace)
+    run_id = "run_" + datetime.datetime.now().astimezone().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8]
+    run_root = config.workspace_root / run_id
+    agent_workspace = run_root / "agent_workspace"
+    records_dir = run_root / "records"
+    agent_workspace.mkdir(parents=True, exist_ok=False)
+    records_dir.mkdir(parents=True, exist_ok=False)
+    prepared = prepare_openai_input(payload["messages"], agent_workspace)
     llm_config = default_llm_config()
     backend_model = str(llm_config.get("model", ""))
     if prepared.initial_content_parts and not model_supports_runtime_image_parts(backend_model):
@@ -366,32 +392,44 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     agent = MultiTurnReactAgent(
         function_list=tool_names,
         llm=llm_config,
-        trace_dir=str(request_workspace),
+        trace_dir=str(records_dir),
         role_prompt=config.role_prompt or None,
     )
 
-    input_wrapper_messages = build_input_wrapper_messages(prepared=prepared, payload=payload)
-    input_wrapper_text = call_wrapper_text(agent, input_wrapper_messages, max_output_tokens=1200)
-    input_plan = extract_json_object(input_wrapper_text)
-    append_api_event(
-        request_workspace,
-        "input_wrapper",
-        {
-            "request": input_wrapper_messages,
-            "response_text": input_wrapper_text,
-            "input_plan": input_plan,
-        },
-    )
+    if config.input_wrapper:
+        input_wrapper_messages = build_input_wrapper_messages(prepared=prepared, payload=payload)
+        input_wrapper_text = call_wrapper_text(agent, input_wrapper_messages, max_output_tokens=1200)
+        input_plan = extract_json_object(input_wrapper_text)
+        append_api_event(
+            records_dir,
+            "input_wrapper",
+            {
+                "enabled": True,
+                "request": input_wrapper_messages,
+                "response_text": input_wrapper_text,
+                "input_plan": input_plan,
+            },
+        )
+    else:
+        input_plan = build_passthrough_input_plan(prepared=prepared, payload=payload)
+        append_api_event(
+            records_dir,
+            "input_wrapper",
+            {
+                "enabled": False,
+                "input_plan": input_plan,
+            },
+        )
 
     agent_prompt = build_agent_prompt(input_plan, prepared)
     session = agent._run_session(
         agent_prompt,
-        workspace_root=str(request_workspace),
+        workspace_root=str(agent_workspace),
         initial_content_parts=prepared.initial_content_parts or None,
     )
     agent_result_text = str(session.get("result_text", "")).strip()
     append_api_event(
-        request_workspace,
+        records_dir,
         "agent_result",
         {
             "termination": session.get("termination", ""),
@@ -400,21 +438,33 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
         },
     )
 
-    output_wrapper_messages = build_output_wrapper_messages(
-        prepared=prepared,
-        payload=payload,
-        input_plan=input_plan,
-        agent_result_text=agent_result_text,
-    )
-    final_text = call_wrapper_text(agent, output_wrapper_messages, max_output_tokens=final_max_tokens(payload))
-    append_api_event(
-        request_workspace,
-        "output_wrapper",
-        {
-            "request": output_wrapper_messages,
-            "response_text": final_text,
-        },
-    )
+    if config.output_wrapper:
+        output_wrapper_messages = build_output_wrapper_messages(
+            prepared=prepared,
+            payload=payload,
+            input_plan=input_plan,
+            agent_result_text=agent_result_text,
+        )
+        final_text = call_wrapper_text(agent, output_wrapper_messages, max_output_tokens=final_max_tokens(payload))
+        append_api_event(
+            records_dir,
+            "output_wrapper",
+            {
+                "enabled": True,
+                "request": output_wrapper_messages,
+                "response_text": final_text,
+            },
+        )
+    else:
+        final_text = agent_result_text
+        append_api_event(
+            records_dir,
+            "output_wrapper",
+            {
+                "enabled": False,
+                "response_text": final_text,
+            },
+        )
     return make_chat_completion_response(
         request_id=request_id,
         model=str(payload.get("model", "researchharness")),
@@ -431,7 +481,12 @@ def create_app(config: ServerConfig) -> FastAPI:
 
     @app.get("/v1/health")
     async def health() -> dict[str, Any]:
-        return {"status": "ok", "workspace_root": str(config.workspace_root)}
+        return {
+            "status": "ok",
+            "workspace_root": str(config.workspace_root),
+            "input_wrapper": config.input_wrapper,
+            "output_wrapper": config.output_wrapper,
+        }
 
     @app.post("/v1/chat/completions")
     async def chat_completions(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
@@ -445,9 +500,24 @@ def create_app(config: ServerConfig) -> FastAPI:
     return app
 
 
-def serve(*, workspace_root: str, host: str = "127.0.0.1", port: int = 8000, role_prompt_files: Optional[list[str]] = None) -> None:
+def serve(
+    *,
+    workspace_root: str,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    role_prompt_files: Optional[list[str]] = None,
+    input_wrapper: bool = True,
+    output_wrapper: bool = True,
+) -> None:
     root = normalize_workspace_root(workspace_root)
     role_prompt = read_role_prompt_files(role_prompt_files or [])
-    config = ServerConfig(workspace_root=root, role_prompt=role_prompt, host=host, port=port)
+    config = ServerConfig(
+        workspace_root=root,
+        role_prompt=role_prompt,
+        host=host,
+        port=port,
+        input_wrapper=input_wrapper,
+        output_wrapper=output_wrapper,
+    )
     app = create_app(config)
     uvicorn.run(app, host=host, port=port)

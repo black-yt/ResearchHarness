@@ -299,12 +299,67 @@ Start the server in one terminal. `--workspace-root` is a parent directory used
 only for API runs; each request gets its own isolated subdirectory under it, so
 separate users, scripts, and benchmark cases do not share files.
 
+Each request creates:
+
+```text
+./workspace/api_runs/
+  run_YYYYMMDD_HHMMSS_<random>/
+    agent_workspace/    # visible to the agent; Bash, Read, Write, ls, and cat start here
+      inputs/images/    # user-provided images, when present
+    records/            # API trace and agent trace files
+```
+
+Default deployment for normal application or personal-assistant use:
+
 ```bash
 python3 serve_openai.py \
-  --workspace-root /path/to/rh_api_workspaces \
+  --workspace-root ./workspace/api_runs \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+QA/VQA benchmark deployment with the optional benchmark role prompt:
+
+```bash
+python3 serve_openai.py \
+  --workspace-root ./workspace/api_runs \
   --host 127.0.0.1 \
   --port 8000 \
   --role-prompt-file benchmarks/QA/role_prompt.md
+```
+
+Wrapper controls:
+
+- `--input-wrapper` / `--no-input-wrapper`: enable or disable the LLM pass that rewrites user input into a stable agent task. Enabled by default.
+- `--output-wrapper` / `--no-output-wrapper`: enable or disable the LLM pass that formats the agent result to the requested answer contract. Enabled by default.
+
+Strict-format benchmark mode usually keeps both wrappers on:
+
+```bash
+python3 serve_openai.py \
+  --workspace-root ./workspace/api_runs \
+  --role-prompt-file benchmarks/QA/role_prompt.md \
+  --input-wrapper \
+  --output-wrapper
+```
+
+Direct agent mode disables both wrappers and returns the agent's own final text:
+
+```bash
+python3 serve_openai.py \
+  --workspace-root ./workspace/api_runs \
+  --no-input-wrapper \
+  --no-output-wrapper
+```
+
+If the input is simple but the answer still needs strict final formatting, keep
+only the output wrapper:
+
+```bash
+python3 serve_openai.py \
+  --workspace-root ./workspace/api_runs \
+  --no-input-wrapper \
+  --output-wrapper
 ```
 
 Use the normal OpenAI SDK from another terminal, application, or benchmark
@@ -330,11 +385,17 @@ supports `data:image/...;base64,...` image URLs.
 
 ```python
 import base64
-from pathlib import Path
+from io import BytesIO
+
+from PIL import Image, ImageDraw
 from openai import OpenAI
 
-image_bytes = Path("example.png").read_bytes()
-data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
+image = Image.new("RGB", (320, 120), "white")
+draw = ImageDraw.Draw(image)
+draw.text((40, 45), "7 + 5 = ?", fill="black")
+buffer = BytesIO()
+image.save(buffer, format="PNG")
+data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8000/v1")
 
@@ -344,7 +405,13 @@ response = client.chat.completions.create(
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "What is in the image? Return JSON with key answer."},
+                {
+                    "type": "text",
+                    "text": (
+                        "The image contains a simple arithmetic expression. "
+                        "Return JSON with exactly two keys: expression and answer."
+                    ),
+                },
                 {"type": "image_url", "image_url": {"url": data_url}},
             ],
         }

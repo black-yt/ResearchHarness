@@ -8,8 +8,40 @@ The recommended integration is the OpenAI-compatible synchronous API server:
 
 ```bash
 python3 /abs/path/to/ResearchHarness/serve_openai.py \
-  --workspace-root /abs/path/to/rh_api_workspaces \
+  --workspace-root ./workspace/api_runs
+```
+
+For QA/VQA benchmark runs, optionally add this benchmark role prompt:
+
+```bash
+python3 /abs/path/to/ResearchHarness/serve_openai.py \
+  --workspace-root ./workspace/api_runs \
   --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/QA/role_prompt.md
+```
+
+Each request creates a fresh run directory:
+
+```text
+./workspace/api_runs/
+  run_YYYYMMDD_HHMMSS_<random>/
+    agent_workspace/    # visible to the agent
+      inputs/images/    # user-provided images, when present
+    records/            # API trace and agent trace files
+```
+
+The input and output LLM wrappers are enabled by default:
+
+- `--input-wrapper` / `--no-input-wrapper` controls the input normalization pass.
+- `--output-wrapper` / `--no-output-wrapper` controls the final answer formatting pass.
+
+Strict-format benchmarks should usually keep both wrappers enabled. To return
+the agent's direct final text instead, run:
+
+```bash
+python3 /abs/path/to/ResearchHarness/serve_openai.py \
+  --workspace-root ./workspace/api_runs \
+  --no-input-wrapper \
+  --no-output-wrapper
 ```
 
 External benchmark runners can then use the regular OpenAI SDK with:
@@ -47,9 +79,9 @@ response = client.chat.completions.create(
 )
 ```
 
-The API saves each submitted image inside the request workspace and also passes
-the image content to the first ResearchHarness model call when the backend model
-supports image parts.
+The API saves each submitted image under `agent_workspace/inputs/images/` and
+also passes the image content to the first ResearchHarness model call when the
+backend model supports image parts.
 
 ## Scope
 
