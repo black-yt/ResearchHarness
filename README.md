@@ -75,7 +75,7 @@ If you are new to the project, the recommended reading order is:
 ## 📰 News
 
 - **2026-05-13: Local browser frontend**
-  ResearchHarness now includes a one-command local chat UI for interactive agent runs. It streams assistant/tool steps in real time, runs directly inside a selected local workspace, supports image attachments, and handles `AskUser` replies through the same chat input box.
+  ResearchHarness now includes a one-command local chat UI for interactive agent runs. It streams assistant/tool steps in real time, runs directly inside a selected local workspace, supports image attachments, and handles `AskUser` replies through the same chat input box. Frontend, CLI, and API multi-image inputs all save user-provided images under `inputs/images/` inside the agent workspace and keep each saved path visible in the agent context.
 - **2026-05-12: OpenAI-compatible API server**
   ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and uses input/output LLM wrappers to keep agent execution stable and final answers format-compliant.
 - **2026-04-30: Interactive `AskUser` tool**
@@ -178,7 +178,7 @@ Start here if you are reading the codebase for the first time.
 
 - [run_agent.py](run_agent.py): thin command-line entrypoint for direct agent runs
 - [run_frontend.py](run_frontend.py): one-command launcher for the local browser UI
-- [serve_openai.py](serve_openai.py): OpenAI-compatible API server entrypoint
+- [run_server.py](run_server.py): OpenAI-compatible API server entrypoint
 - [api/openai_server.py](api/openai_server.py): `/v1/chat/completions` request handling, wrappers, and per-request run directories
 - [frontend/](frontend): local WebSocket UI, static assets, and browser AskUser bridge
 - [agent_base/react_agent.py](agent_base/react_agent.py): main ReAct loop, model calls, tool-call handling, trace/session state integration
@@ -398,6 +398,19 @@ python3 -m agent_base.react_agent "review this artifact" \
   --role-prompt-file /path/to/role_prompt.md
 ```
 
+Attach one or more local images to the initial user message:
+
+```bash
+python3 run_agent.py "Read the image and answer in JSON." \
+  --workspace-root ./workspace \
+  --images /path/to/image.png /path/to/second-image.png
+```
+
+Each `--images` path must exist. ResearchHarness copies every image into
+`./workspace/inputs/images/`, sends each one as a standard `image_url` content
+part, and includes each saved relative path in the user text so later rounds can
+recover images with `ReadImage`.
+
 The CLI is not limited to a final one-line answer. During execution it prints a
 readable step-by-step stream so you can inspect what the agent is doing without
 opening trace files:
@@ -448,9 +461,10 @@ not a native OS dialog. It supports Unicode paths, including Chinese folder
 names, and you can still paste a folder path manually when that is faster.
 
 Attached images are sent to the model as OpenAI-style `image_url` content parts.
-They are also saved under `.rh_frontend_inputs/images/` inside the workspace so
-the agent can inspect them with `ReadImage` when tool-based image reading is
-needed.
+They are also saved under `inputs/images/` inside the selected workspace. The
+saved relative path is included as text next to the image input, so later model
+steps can refer back to the file and call `ReadImage` if visual inspection is
+needed again.
 
 ---
 
@@ -492,7 +506,7 @@ events, agent trace, and session state into that run's `agent_trace/` directory.
 Default deployment for normal application or personal-assistant use:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686
@@ -501,7 +515,7 @@ python3 serve_openai.py \
 QA/VQA benchmark deployment with the optional benchmark role prompt:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686 \
@@ -518,7 +532,7 @@ The API server has two optional LLM wrapper passes. Both are enabled by default.
 Strict-format benchmark mode usually keeps both wrappers on:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --role-prompt-file benchmarks/QA/role_prompt.md \
   --input-wrapper \
@@ -528,7 +542,7 @@ python3 serve_openai.py \
 Direct agent mode disables both wrappers and returns the agent's own final text:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --no-output-wrapper
@@ -538,7 +552,7 @@ If the input is simple but the answer still needs strict final formatting, keep
 only the output wrapper:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --output-wrapper
@@ -567,7 +581,7 @@ print(response.choices[0].message.content)
 ### Multimodal Request
 
 Multimodal requests use OpenAI-style content parts. The first API version
-supports `data:image/...;base64,...` image URLs.
+supports one or more `data:image/...;base64,...` image URLs in the same request.
 
 ```python
 import base64
@@ -607,10 +621,12 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-For multimodal API requests, the image content is passed directly to the backend
-model when the selected model supports image parts. The same image is also saved
-under `agent_workspace/inputs/images/` so the agent can refer to a stable local
-path during tool work.
+For multimodal API requests, each image content part is passed directly to the
+backend model when the selected model supports image parts. Each image is also
+saved under `agent_workspace/inputs/images/`, and each saved relative path is
+included in the agent-visible text next to the corresponding image content part.
+If an image is needed again after later turns, the agent can call `ReadImage` on
+the saved path instead of relying on repeated inline image bytes.
 
 ### API Execution Flow
 

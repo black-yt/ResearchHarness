@@ -111,6 +111,18 @@ python3 run_agent.py "Answer this QA task." \
   --role-prompt-file benchmarks/QA/role_prompt.md
 ```
 
+Attach a local image:
+
+```bash
+python3 run_agent.py "Read the image and return JSON." \
+  --workspace-root ./workspace \
+  --images /path/to/image.png /path/to/second-image.png
+```
+
+Each image path must exist. RH copies images into `./workspace/inputs/images/`,
+sends them as initial `image_url` content parts, and adds each saved relative
+path to the user text so later rounds can call `ReadImage` on the same files.
+
 ### CLI Parameters
 
 | Parameter | Required | Meaning |
@@ -120,6 +132,7 @@ python3 run_agent.py "Answer this QA task." \
 | `--workspace-root PATH` | no | Workspace root for local file tools, Bash, and terminal sessions. Created if missing. |
 | `--trace-dir PATH` | no | Directory where `trace_*.jsonl` is written. |
 | `--role-prompt-file PATH` | no, repeatable | Append role-specific prompt text to the base system prompt. |
+| `--images PATH [PATH ...]` | no | Copy one or more local images into `inputs/images/` and attach them to the initial user message. |
 
 ## 4. OpenAI-Compatible API Server
 
@@ -137,7 +150,7 @@ This allows existing OpenAI SDK clients to call ResearchHarness by changing only
 Default deployment:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686
@@ -146,7 +159,7 @@ python3 serve_openai.py \
 QA/VQA benchmark deployment with a role prompt:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686 \
@@ -171,7 +184,7 @@ Both wrappers are enabled by default.
 Strict-format benchmark mode:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --role-prompt-file benchmarks/QA/role_prompt.md \
   --input-wrapper \
@@ -181,7 +194,7 @@ python3 serve_openai.py \
 Direct agent mode:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --no-output-wrapper
@@ -190,7 +203,7 @@ python3 serve_openai.py \
 Simple input plus strict final formatting:
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --output-wrapper
@@ -236,9 +249,10 @@ Meaning:
 
 For multimodal requests, image inputs are handled in two ways at the same time:
 the image content is passed to the backend model as initial multimodal input
-when the selected model supports it, and the same image is saved under
-`agent_workspace/inputs/images/` so the agent can refer to or inspect a stable
-local path during tool work.
+when the selected model supports it, and each image is saved under
+`agent_workspace/inputs/images/`. Each saved relative path is also included in
+the agent-visible text, so later rounds can call `ReadImage` on a stable local
+path without repeatedly resending image bytes.
 
 This separation keeps user-visible tool work separate from server-side trace files.
 In API deployment mode, traces are saved by default: every request writes
@@ -264,9 +278,9 @@ print(response.choices[0].message.content)
 
 ## 7. Multimodal Request with OpenAI SDK
 
-The first API version supports `data:image/...;base64,...` image URLs. Remote
-image URLs and local file paths are intentionally not supported by the API
-server.
+The first API version supports one or more `data:image/...;base64,...` image
+URLs in the same request. Remote image URLs and local file paths are
+intentionally not supported by the API server.
 
 The example below generates an image in memory and asks for JSON output.
 

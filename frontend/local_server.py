@@ -16,7 +16,16 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from agent_base.react_agent import MultiTurnReactAgent, default_llm_config
-from agent_base.utils import MissingRequiredEnvError, PROJECT_ROOT, load_dotenv, require_required_env, safe_jsonable
+from agent_base.utils import (
+    MissingRequiredEnvError,
+    PROJECT_ROOT,
+    append_saved_image_paths_to_prompt,
+    image_input_content_parts,
+    load_dotenv,
+    require_required_env,
+    safe_jsonable,
+    stage_image_bytes_for_input,
+)
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -149,8 +158,6 @@ def save_uploaded_images(workspace_root: Path, images: list[dict[str, Any]]) -> 
         raise ValueError(f"at most {MAX_UPLOAD_IMAGES} images are supported per run")
     if not images:
         return [], []
-    image_dir = workspace_root / ".rh_frontend_inputs" / "images"
-    image_dir.mkdir(parents=True, exist_ok=True)
     timestamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     content_parts: list[dict[str, Any]] = []
     saved_paths: list[str] = []
@@ -160,24 +167,20 @@ def save_uploaded_images(workspace_root: Path, images: list[dict[str, Any]]) -> 
         data_url = str(item.get("data_url", "")).strip()
         filename = str(item.get("name", "") or f"image_{idx}")
         suffix, raw = decode_image_data_url(data_url, filename=filename)
-        safe_stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(filename).stem).strip("._") or f"image_{idx}"
-        path = image_dir / f"{timestamp}_{idx:02d}_{safe_stem}{suffix}"
-        path.write_bytes(raw)
-        saved_paths.append(str(path))
-        content_parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "auto"}})
+        saved_path = stage_image_bytes_for_input(
+            raw,
+            workspace_root=workspace_root,
+            filename=f"{timestamp}_{filename}",
+            image_index=idx - 1,
+            suffix=suffix,
+        )
+        saved_paths.append(saved_path)
+        content_parts.extend(image_input_content_parts(data_url, saved_path))
     return content_parts, saved_paths
 
 
 def _prompt_with_uploaded_image_paths(prompt: str, saved_paths: list[str]) -> str:
-    if not saved_paths:
-        return prompt
-    lines = "\n".join(f"- {path}" for path in saved_paths)
-    return (
-        f"{prompt.strip()}\n\n"
-        "The user attached image input. The images are also saved locally inside the workspace:\n"
-        f"{lines}\n"
-        "Use the direct image input when the model supports vision. If tool-based inspection is needed, use ReadImage on the saved local paths."
-    )
+    return append_saved_image_paths_to_prompt(prompt, saved_paths)
 
 
 def _run_agent_thread(

@@ -1,4 +1,4 @@
-"""Run ResearchHarness as a minimal OpenAI-compatible synchronous API server."""
+"""Run ResearchHarness as a minimal OpenAI-compatible API server."""
 
 from __future__ import annotations
 

@@ -28,18 +28,35 @@ class FrontendCheckResult:
 def test_frontend_image_data_url_save(tmp_path: Path) -> None:
     raw = b"not really an image, but valid bytes for data-url plumbing"
     data_url = "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
+    second_raw = b"second image bytes"
+    second_data_url = "data:image/jpeg;base64," + base64.b64encode(second_raw).decode("ascii")
 
     parts, saved_paths = save_uploaded_images(
         tmp_path,
-        [{"name": "demo image.png", "data_url": data_url}],
+        [
+            {"name": "demo image.png", "data_url": data_url},
+            {"name": "second image.jpg", "data_url": second_data_url},
+        ],
     )
 
-    assert parts == [{"type": "image_url", "image_url": {"url": data_url, "detail": "auto"}}]
-    assert len(saved_paths) == 1
-    saved_path = Path(saved_paths[0])
+    assert len(parts) == 4
+    assert parts[0]["type"] == "text"
+    assert parts[0]["text"].startswith("[User-provided image saved at inputs/images/")
+    assert parts[1] == {"type": "image_url", "image_url": {"url": data_url, "detail": "auto"}}
+    assert parts[2]["type"] == "text"
+    assert parts[2]["text"].startswith("[User-provided image saved at inputs/images/")
+    assert parts[3] == {"type": "image_url", "image_url": {"url": second_data_url, "detail": "auto"}}
+    assert len(saved_paths) == 2
+    assert saved_paths[0].startswith("inputs/images/")
+    assert saved_paths[1].startswith("inputs/images/")
+    saved_path = tmp_path / saved_paths[0]
+    second_saved_path = tmp_path / saved_paths[1]
     assert saved_path.is_file()
+    assert second_saved_path.is_file()
     assert saved_path.read_bytes() == raw
-    assert saved_path.parent == tmp_path / ".rh_frontend_inputs" / "images"
+    assert second_saved_path.read_bytes() == second_raw
+    assert saved_path.parent == tmp_path / "inputs" / "images"
+    assert second_saved_path.parent == tmp_path / "inputs" / "images"
 
 
 def test_frontend_rejects_non_image_data_url() -> None:
@@ -96,6 +113,7 @@ def test_frontend_static_interaction_contract() -> None:
 
     assert "Ctrl+Enter" in html
     assert "Ctrl+Enter inserts a newline" in html
+    assert "Click + to add one or more images" in html
     assert "--role-prompt-file" in launcher
     assert "--trace-dir" in launcher
     assert "configure_frontend" in launcher
@@ -118,6 +136,7 @@ def test_frontend_static_interaction_contract() -> None:
     assert 'eventNode.classList.add("collapsed")' not in js
     assert 'node.classList.contains("latest")' in js
     assert "event.isComposing" in js
+    assert ".rh_frontend_inputs" not in server
     assert "send-button.is-running" in css
     assert "height: 100dvh" in css
     assert ".chat-shell > *" in css

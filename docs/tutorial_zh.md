@@ -106,6 +106,18 @@ python3 run_agent.py "Answer this QA task." \
   --role-prompt-file benchmarks/QA/role_prompt.md
 ```
 
+附加本地图片：
+
+```bash
+python3 run_agent.py "Read the image and return JSON." \
+  --workspace-root ./workspace \
+  --images /path/to/image.png /path/to/second-image.png
+```
+
+每个图片路径都必须存在。RH 会把图片复制到 `./workspace/inputs/images/`，
+作为初始 `image_url` content part 传给模型，同时把每个保存后的相对路径写进
+用户文本，让后续轮次可以用 `ReadImage` 重新读取这些图片。
+
 ### CLI 参数
 
 | 参数 | 是否必需 | 含义 |
@@ -115,6 +127,7 @@ python3 run_agent.py "Answer this QA task." \
 | `--workspace-root PATH` | 否 | 本地文件工具、Bash、Terminal 使用的 workspace root；不存在会自动创建。 |
 | `--trace-dir PATH` | 否 | 写入 `trace_*.jsonl` 的目录。 |
 | `--role-prompt-file PATH` | 否，可重复 | 追加 role-specific prompt 到 base system prompt。 |
+| `--images PATH [PATH ...]` | 否 | 把一张或多张本地图片复制到 `inputs/images/` 并附加到初始用户消息。 |
 
 ## 4. OpenAI-Compatible API Server
 
@@ -131,7 +144,7 @@ POST /v1/chat/completions
 默认部署：
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686
@@ -140,7 +153,7 @@ python3 serve_openai.py \
 QA/VQA benchmark 部署，可以额外加 role prompt：
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686 \
@@ -165,7 +178,7 @@ python3 serve_openai.py \
 严格格式 benchmark 模式：
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --role-prompt-file benchmarks/QA/role_prompt.md \
   --input-wrapper \
@@ -175,7 +188,7 @@ python3 serve_openai.py \
 直接 agent 模式：
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --no-output-wrapper
@@ -184,7 +197,7 @@ python3 serve_openai.py \
 输入简单但最终答案需要严格格式：
 
 ```bash
-python3 serve_openai.py \
+python3 run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --output-wrapper
@@ -225,10 +238,10 @@ flowchart LR
 | `agent_workspace/inputs/images/` | API 请求中用户提交的图片。 |
 | `agent_trace/` | API trace、agent trace 和 runtime 记录。 |
 
-对于多模态请求，图片会同时走两条路径：当底层模型支持多模态输入时，
-图片内容会作为初始多模态输入直接传给模型；同一张图片也会保存到
-`agent_workspace/inputs/images/`，让 agent 在工具执行过程中可以引用或检查
-稳定的本地路径。
+对于多模态请求，每张图片会同时走两条路径：当底层模型支持多模态输入时，
+图片内容会作为初始多模态输入直接传给模型；每张图片也会保存到
+`agent_workspace/inputs/images/`。每个保存后的相对路径也会写进 agent 可见文本，
+让后续轮次可以用 `ReadImage` 读取稳定的本地路径，而不是反复依赖内联图片字节。
 
 这个结构把 agent 可见工作目录和服务端记录目录隔离开。
 在 API 部署模式下，trace 默认保存：每个请求都会在自己的 `agent_trace/`
@@ -253,7 +266,7 @@ print(response.choices[0].message.content)
 
 ## 7. 多模态 OpenAI SDK 请求
 
-第一版 API 支持 `data:image/...;base64,...` 形式的图片 URL。API server 不支持远程图片 URL，也不支持让外部请求直接传本地文件路径。
+第一版 API 支持同一个请求中包含一张或多张 `data:image/...;base64,...` 形式的图片 URL。API server 不支持远程图片 URL，也不支持让外部请求直接传本地文件路径。
 
 下面的示例在代码中生成一张图片，并要求返回 JSON。
 

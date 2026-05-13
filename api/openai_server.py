@@ -23,7 +23,7 @@ from agent_base.react_agent import (
     model_supports_runtime_image_parts,
 )
 from agent_base.tools.tooling import normalize_workspace_root
-from agent_base.utils import append_jsonl, read_role_prompt_files, safe_jsonable
+from agent_base.utils import append_jsonl, image_input_content_parts, read_role_prompt_files, safe_jsonable
 
 
 DATA_IMAGE_RE = re.compile(r"^data:(image/[A-Za-z0-9.+-]+);base64,(.*)$", re.DOTALL)
@@ -63,6 +63,13 @@ Rules:
 - Do not add markdown fences unless the user explicitly required them.
 - Do not solve the task again.
 - Do not introduce facts not present in the agent result.
+- Make the answer complete and self-contained for a remote user or evaluator.
+- The answer may mention workspace files when useful, but it must not depend on
+  local files as the only carrier of the answer.
+- Include the actual answer and any necessary evidence or solution steps in the
+  returned text.
+- If reasoning or evidence is required, summarize it directly in the final
+  answer according to the requested format.
 - If the requested format is JSON, return valid JSON only.
 - If the agent result does not contain enough information, produce the best
   contract-compliant failure answer instead of inventing evidence.
@@ -176,12 +183,7 @@ def prepare_openai_input(messages: list[Any], workspace_root: Path) -> PreparedI
                     image_index += 1
                     image_paths.append(rel_path)
                     text_parts.append(f"[image saved at {rel_path}]")
-                    initial_content_parts.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": url, "detail": detail},
-                        }
-                    )
+                    initial_content_parts.extend(image_input_content_parts(url, rel_path, detail=detail))
                 else:
                     raise OpenAICompatError(400, f"Unsupported content part type: {part_type!r}.")
         else:
@@ -216,7 +218,7 @@ def save_data_image(url: str, *, workspace_root: Path, image_dir: Path, image_in
     filename = f"image_{image_index:03d}{extension}"
     path = image_dir / filename
     path.write_bytes(image_bytes)
-    return str(path.relative_to(workspace_root))
+    return path.relative_to(workspace_root).as_posix()
 
 
 def wrapper_request_payload(*, prepared: PreparedInput, payload: dict[str, Any]) -> dict[str, Any]:
@@ -260,15 +262,16 @@ def build_passthrough_input_plan(*, prepared: PreparedInput, payload: dict[str, 
 def build_agent_prompt(input_plan: dict[str, Any], prepared: PreparedInput) -> str:
     image_block = "\n".join(f"- {path}" for path in prepared.image_paths) if prepared.image_paths else "- none"
     return (
-        "You are solving a QA benchmark request through ResearchHarness.\n\n"
+        "You are solving a user request through ResearchHarness.\n\n"
         "Task for the agent:\n"
         f"{str(input_plan.get('agent_instruction', '')).strip()}\n\n"
         "User-provided images saved in this workspace:\n"
         f"{image_block}\n\n"
         "The original image content is attached to the initial user message when the backend model supports image parts. "
         "The same images are also saved at the paths above so you may call ReadImage when visual inspection is needed.\n\n"
-        "Do not optimize your tool-use loop for the final output schema. Solve the task completely, then finish with a concise "
-        "summary of what you did, the evidence used, and the final answer.\n\n"
+        "Do not optimize your tool-use loop for the final output schema. Solve the task completely, then finish with a complete, "
+        "self-contained internal final text that includes the actual answer, the evidence used, and any concise reasoning needed to understand it. "
+        "You may mention files you created or inspected, but the internal final text must not depend on local files as the only carrier of the answer.\n\n"
         "Final output contract that will be enforced by a formatter after your run:\n"
         f"{str(input_plan.get('output_contract', 'plain text')).strip()}\n\n"
         "Wrapper notes:\n"

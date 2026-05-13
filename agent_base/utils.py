@@ -1,6 +1,9 @@
 import argparse
+import base64
 import json
 import os
+import re
+import shutil
 import shlex
 import sys
 from pathlib import Path
@@ -17,6 +20,16 @@ REQUIRED_ENV_VARS = (
     "JINA_API_KEYS",
     "MINERU_TOKEN",
 )
+IMAGE_INPUT_REL_DIR = Path("inputs") / "images"
+MAX_INPUT_IMAGE_BYTES = 25 * 1024 * 1024
+IMAGE_MIME_BY_EXTENSION = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+}
 
 
 class MissingRequiredEnvError(RuntimeError):
@@ -87,6 +100,106 @@ def read_role_prompt_files(paths: Iterable[str]) -> str:
             raise ValueError(f"Role prompt path is not a file: {path}")
         blocks.append(path.read_text(encoding="utf-8").strip())
     return "\n\n".join(block for block in blocks if block.strip())
+
+
+def _safe_image_stem(name: str, fallback: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(name).stem).strip("._")
+    return stem or fallback
+
+
+def _unique_image_path(image_dir: Path, *, image_index: int, stem: str, suffix: str) -> Path:
+    base_name = f"image_{image_index:03d}_{stem}{suffix}"
+    candidate = image_dir / base_name
+    if not candidate.exists():
+        return candidate
+    counter = 1
+    while True:
+        candidate = image_dir / f"image_{image_index:03d}_{stem}_{counter}{suffix}"
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def image_input_content_parts(data_url: str, saved_path: str, *, detail: str = "auto") -> list[dict[str, Any]]:
+    """Build standard initial content parts for a saved user image."""
+    return [
+        {"type": "text", "text": f"[User-provided image saved at {saved_path}]"},
+        {"type": "image_url", "image_url": {"url": data_url, "detail": detail or "auto"}},
+    ]
+
+
+def stage_image_bytes_for_input(
+    raw: bytes,
+    *,
+    workspace_root: Union[str, Path],
+    filename: str,
+    image_index: int,
+    suffix: str,
+    max_bytes: int = MAX_INPUT_IMAGE_BYTES,
+) -> str:
+    if not raw:
+        raise ValueError("image input is empty")
+    if len(raw) > max_bytes:
+        raise ValueError(f"image input exceeds {max_bytes} bytes")
+    normalized_suffix = suffix.lower()
+    if normalized_suffix not in IMAGE_MIME_BY_EXTENSION:
+        raise ValueError(f"unsupported image extension: {suffix}")
+    root = Path(workspace_root).expanduser().resolve()
+    image_dir = root / IMAGE_INPUT_REL_DIR
+    image_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_image_stem(filename, f"image_{image_index:03d}")
+    dest = _unique_image_path(image_dir, image_index=image_index, stem=stem, suffix=normalized_suffix)
+    dest.write_bytes(raw)
+    return dest.relative_to(root).as_posix()
+
+
+def stage_image_file_for_input(
+    source_path: Union[str, Path],
+    *,
+    workspace_root: Union[str, Path],
+    image_index: int,
+    max_bytes: int = MAX_INPUT_IMAGE_BYTES,
+) -> tuple[str, str]:
+    source = Path(source_path).expanduser()
+    if not source.is_absolute():
+        source = (Path.cwd() / source).resolve()
+    else:
+        source = source.resolve()
+    if not source.exists():
+        raise ValueError(f"image path does not exist: {source}")
+    if not source.is_file():
+        raise ValueError(f"image path is not a file: {source}")
+    suffix = source.suffix.lower()
+    mime_type = IMAGE_MIME_BY_EXTENSION.get(suffix)
+    if mime_type is None:
+        raise ValueError(f"unsupported image extension for {source}; expected one of {', '.join(sorted(IMAGE_MIME_BY_EXTENSION))}")
+    size = source.stat().st_size
+    if size <= 0:
+        raise ValueError(f"image file is empty: {source}")
+    if size > max_bytes:
+        raise ValueError(f"image file exceeds {max_bytes} bytes: {source}")
+    root = Path(workspace_root).expanduser().resolve()
+    image_dir = root / IMAGE_INPUT_REL_DIR
+    image_dir.mkdir(parents=True, exist_ok=True)
+    stem = _safe_image_stem(source.name, f"image_{image_index:03d}")
+    dest = _unique_image_path(image_dir, image_index=image_index, stem=stem, suffix=suffix)
+    shutil.copyfile(source, dest)
+    rel_path = dest.relative_to(root).as_posix()
+    data_url = f"data:{mime_type};base64," + base64.b64encode(dest.read_bytes()).decode("ascii")
+    return rel_path, data_url
+
+
+def append_saved_image_paths_to_prompt(prompt: str, saved_paths: Iterable[str]) -> str:
+    paths = [str(path).strip() for path in saved_paths if str(path).strip()]
+    if not paths:
+        return prompt
+    lines = "\n".join(f"- {path}" for path in paths)
+    return (
+        f"{prompt.strip()}\n\n"
+        "The user attached image input. The images are saved locally inside the workspace:\n"
+        f"{lines}\n"
+        "Use the direct image input when the model supports vision. If tool-based inspection is needed, use ReadImage on the saved local paths."
+    )
 
 
 def safe_jsonable(value: Any) -> Any:

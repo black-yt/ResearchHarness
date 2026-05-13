@@ -2,6 +2,7 @@ import argparse
 from contextlib import contextmanager
 import json
 import os
+import re
 import signal
 import sys
 import threading
@@ -26,11 +27,14 @@ from agent_base.tools.tool_web import ScholarSearch, WebFetch, WebSearch
 from agent_base.utils import (
     PROJECT_ROOT,
     MissingRequiredEnvError,
+    append_saved_image_paths_to_prompt,
     env_flag,
+    image_input_content_parts,
     load_dotenv,
     read_role_prompt_files,
     require_required_env,
     safe_jsonable,
+    stage_image_file_for_input,
 )
 
 import datetime
@@ -195,11 +199,25 @@ def _image_reference_summary(part: dict[str, Any]) -> str:
     return url_text or "unavailable"
 
 
-def _omitted_image_part_text(part: dict[str, Any]) -> str:
+def _image_path_hint_from_text(text: str) -> str:
+    patterns = (
+        r"\[User-provided image saved at ([^\]\n]+)\]",
+        r"Local image path:\s*([^\n]+)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
+def _omitted_image_part_text(part: dict[str, Any], *, saved_path_hint: str = "") -> str:
     url_text = _image_reference_summary(part)
+    path_text = f" Saved local path: {saved_path_hint}." if saved_path_hint else ""
     return (
         "[Previous image omitted from this model request to avoid repeatedly resending image bytes. "
         f"Original image reference: {url_text}. "
+        f"{path_text} "
         "The nearby conversation text or tool metadata records saved local paths when available; "
         "use ReadImage on the saved path if visual details are needed again.]"
     )
@@ -211,16 +229,22 @@ def _replace_image_parts_with_text(content: Any, *, message_index: int) -> tuple
     replacement: list[Any] = []
     omitted_images: list[dict[str, Any]] = []
     image_index = 0
+    last_text_path_hint = ""
     for part in content:
+        if isinstance(part, dict) and part.get("type") == "text":
+            path_hint = _image_path_hint_from_text(str(part.get("text", "")))
+            if path_hint:
+                last_text_path_hint = path_hint
         if isinstance(part, dict) and part.get("type") == "image_url":
             omitted_images.append(
                 {
                     "message_index": message_index,
                     "image_index": image_index,
                     "reference_summary": _image_reference_summary(part),
+                    "saved_path_hint": last_text_path_hint,
                 }
             )
-            replacement.append({"type": "text", "text": _omitted_image_part_text(part)})
+            replacement.append({"type": "text", "text": _omitted_image_part_text(part, saved_path_hint=last_text_path_hint)})
         else:
             replacement.append(safe_jsonable(part))
         if isinstance(part, dict) and part.get("type") == "image_url":
@@ -1263,7 +1287,7 @@ def resolve_agent_class_for_role_prompt_files(role_prompt_files: Sequence[str]) 
     return MultiTurnReactAgent
 
 
-def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str], str, list[str]]:
+def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str], str, list[str], list[str]]:
     parser = argparse.ArgumentParser(description="Run the local agent directly from agent_base.react_agent.")
     parser.add_argument("prompt", nargs="*", help="Prompt text.")
     parser.add_argument("--prompt-file", help="Optional UTF-8 text file containing the prompt.")
@@ -1279,6 +1303,15 @@ def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str],
         dest="role_prompt_files",
         metavar="PATH",
         help="Append one role-specific prompt file to the base system prompt. May be passed multiple times.",
+    )
+    parser.add_argument(
+        "--images",
+        action="append",
+        nargs="+",
+        default=[],
+        dest="image_paths",
+        metavar="PATH",
+        help="Attach one or more local image paths to the initial user message.",
     )
     args = parser.parse_args(argv)
 
@@ -1297,6 +1330,7 @@ def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str],
         args.workspace_root,
         role_prompt,
         list(args.role_prompt_files),
+        [path for group in args.image_paths for path in group],
     )
 
 
@@ -1304,7 +1338,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     load_dotenv(PROJECT_ROOT / ".env")
     try:
         require_required_env("ResearchHarness agent")
-        prompt_text, trace_dir, workspace_root, role_prompt, role_prompt_files = _parse_cli_args(argv or sys.argv[1:])
+        prompt_text, trace_dir, workspace_root, role_prompt, role_prompt_files, image_paths = _parse_cli_args(argv or sys.argv[1:])
         agent_cls = resolve_agent_class_for_role_prompt_files(role_prompt_files)
         agent = agent_cls(
             llm=default_llm_config(),
@@ -1312,13 +1346,29 @@ def main(argv: Optional[list[str]] = None) -> int:
             role_prompt=role_prompt or None,
         )
         resolved_workspace_root = normalize_workspace_root(workspace_root)
+        initial_content_parts: list[dict[str, Any]] = []
+        saved_image_paths: list[str] = []
+        for image_index, image_path in enumerate(image_paths):
+            saved_path, data_url = stage_image_file_for_input(
+                image_path,
+                workspace_root=resolved_workspace_root,
+                image_index=image_index,
+            )
+            saved_image_paths.append(saved_path)
+            initial_content_parts.extend(image_input_content_parts(data_url, saved_path))
+        run_prompt = append_saved_image_paths_to_prompt(prompt_text, saved_image_paths)
         printer = ConsoleEventPrinter(
             model_name=agent.model,
             workspace_root=resolved_workspace_root,
-            prompt=prompt_text,
+            prompt=run_prompt,
         )
         printer.print_header()
-        agent._run_session(prompt_text, workspace_root=workspace_root, event_callback=printer.handle_event)
+        agent._run_session(
+            run_prompt,
+            workspace_root=str(resolved_workspace_root),
+            event_callback=printer.handle_event,
+            initial_content_parts=initial_content_parts or None,
+        )
         return 0
     except (MissingRequiredEnvError, ValueError) as exc:
         print(str(exc), file=sys.stderr)

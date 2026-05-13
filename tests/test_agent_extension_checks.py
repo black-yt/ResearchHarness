@@ -27,7 +27,18 @@ def main() -> int:
 
     from agent_base import agent_role
     from agent_base.prompt import SYSTEM_PROMPT
-    from agent_base.react_agent import AVAILABLE_TOOL_MAP, MultiTurnReactAgent, resolve_agent_class_for_role_prompt_files
+    from agent_base.react_agent import (
+        AVAILABLE_TOOL_MAP,
+        MultiTurnReactAgent,
+        _parse_cli_args,
+        prepare_messages_for_llm,
+        resolve_agent_class_for_role_prompt_files,
+    )
+    from agent_base.utils import (
+        append_saved_image_paths_to_prompt,
+        image_input_content_parts,
+        stage_image_file_for_input,
+    )
     from benchmarks.ResearchClawBench.adapter import ResearchClawBenchAgent
 
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,6 +87,7 @@ def main() -> int:
 
     system_message = agent.seen_messages[0]["content"] if agent.seen_messages else ""
     rcb_prompt_path = ROOT / "benchmarks" / "ResearchClawBench" / "role_prompt.md"
+    qa_prompt_text = (ROOT / "benchmarks" / "QA" / "role_prompt.md").read_text(encoding="utf-8")
     resolved_default_cls = resolve_agent_class_for_role_prompt_files([])
     resolved_rcb_cls = resolve_agent_class_for_role_prompt_files([str(rcb_prompt_path)])
     rcb_agent = ResearchClawBenchAgent(
@@ -109,6 +121,40 @@ def main() -> int:
         )
     except ValueError as exc:
         rcb_forbidden_error = str(exc)
+
+    cli_image_source = TMP_DIR / "source_image.png"
+    cli_image_source.write_bytes(b"fake png bytes")
+    cli_second_image_source = TMP_DIR / "source_image_2.jpg"
+    cli_second_image_source.write_bytes(b"fake jpg bytes")
+    cli_workspace = TMP_DIR / "cli_workspace"
+    cli_workspace.mkdir(exist_ok=True)
+    cli_saved_path, cli_data_url = stage_image_file_for_input(
+        cli_image_source,
+        workspace_root=cli_workspace,
+        image_index=0,
+    )
+    cli_second_saved_path, cli_second_data_url = stage_image_file_for_input(
+        cli_second_image_source,
+        workspace_root=cli_workspace,
+        image_index=1,
+    )
+    cli_content_parts = [
+        *image_input_content_parts(cli_data_url, cli_saved_path),
+        *image_input_content_parts(cli_second_data_url, cli_second_saved_path),
+    ]
+    cli_prompt = append_saved_image_paths_to_prompt("Inspect the images.", [cli_saved_path, cli_second_saved_path])
+    _, _, _, _, _, parsed_image_args = _parse_cli_args(
+        ["Inspect the images.", "--images", str(cli_image_source), str(cli_second_image_source)]
+    )
+    aged_messages, image_aging = prepare_messages_for_llm(
+        [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": [{"type": "text", "text": cli_prompt}, *cli_content_parts]},
+            {"role": "assistant", "content": "I will continue."},
+            {"role": "user", "content": "continue"},
+        ]
+    )
+    aged_user_content = aged_messages[1]["content"]
     preview_text = preview(
         json.dumps(
             {
@@ -121,7 +167,12 @@ def main() -> int:
                 "ask_user_available": "AskUser" in AVAILABLE_TOOL_MAP,
                 "rcb_has_ask_user": "AskUser" in rcb_agent.tool_names,
                 "rcb_forbidden_error": rcb_forbidden_error,
+                "cli_saved_path": cli_saved_path,
+                "cli_second_saved_path": cli_second_saved_path,
+                "parsed_image_args": parsed_image_args,
+                "image_aging": image_aging,
                 "system_prompt_tail": system_message[-300:],
+                "qa_prompt_mentions_synchronous": "synchronous" in qa_prompt_text.lower(),
             },
             ensure_ascii=False,
             indent=2,
@@ -132,6 +183,11 @@ def main() -> int:
         agent.tool_names == []
         and agent._native_tools == []
         and SYSTEM_PROMPT.splitlines()[0] in system_message
+        and "Non-interactive or benchmark-style runs:" in system_message
+        and "Interactive runs:" in system_message
+        and "Final answers must be complete and self-contained enough" in system_message
+        and "You may reference local files" in system_message
+        and "Only use `AskUser` if it is available in the current tool list" in system_message
         and "You are the Judge agent." in system_message
         and session.get("result_text") == '{"overall_score": 8.5, "verdict": "good"}'
         and not any(row.get("role") == "tool" for row in rows)
@@ -141,6 +197,18 @@ def main() -> int:
         and "AskUser" in AVAILABLE_TOOL_MAP
         and "AskUser" not in rcb_agent.tool_names
         and "AskUser" in rcb_forbidden_error
+        and cli_saved_path.startswith("inputs/images/")
+        and cli_second_saved_path.startswith("inputs/images/")
+        and (cli_workspace / cli_saved_path).exists()
+        and (cli_workspace / cli_second_saved_path).exists()
+        and parsed_image_args == [str(cli_image_source), str(cli_second_image_source)]
+        and isinstance(aged_user_content, list)
+        and any("Saved local path: inputs/images/" in str(part.get("text", "")) for part in aged_user_content if isinstance(part, dict))
+        and image_aging["omitted_image_count"] == 2
+        and "synchronous" not in qa_prompt_text.lower()
+        and "complete, independent plain-text answer" in qa_prompt_text
+        and "answer.md" in qa_prompt_text
+        and "do not rely on local workspace files as the answer" in qa_prompt_text
     )
 
     result = AgentExtensionResult(

@@ -34,7 +34,9 @@ def main() -> int:
     from agent_base.react_agent import MultiTurnReactAgent
     from api.openai_server import (
         ServerConfig,
+        build_agent_prompt,
         build_input_wrapper_messages,
+        build_output_wrapper_messages,
         build_passthrough_input_plan,
         extract_json_object,
         make_chat_completion_response,
@@ -52,7 +54,8 @@ def main() -> int:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "What color is the image? Return JSON with key answer."},
+                    {"type": "text", "text": "Compare the two images. Return JSON with key answer."},
+                    {"type": "image_url", "image_url": {"url": TINY_PNG_DATA_URL}},
                     {"type": "image_url", "image_url": {"url": TINY_PNG_DATA_URL}},
                 ],
             },
@@ -62,8 +65,23 @@ def main() -> int:
 
     prepared = prepare_openai_input(payload["messages"], TMP_DIR)
     saved_image = TMP_DIR / "inputs" / "images" / "image_000.png"
+    second_saved_image = TMP_DIR / "inputs" / "images" / "image_001.png"
     input_wrapper_messages = build_input_wrapper_messages(prepared=prepared, payload=payload)
     passthrough_plan = build_passthrough_input_plan(prepared=prepared, payload=payload)
+    agent_prompt = build_agent_prompt(
+        {
+            "agent_instruction": "Use both saved images.",
+            "output_contract": "Return JSON.",
+            "wrapper_notes": "test",
+        },
+        prepared,
+    )
+    output_wrapper_messages = build_output_wrapper_messages(
+        prepared=prepared,
+        payload=payload,
+        input_plan={"output_contract": "Return JSON."},
+        agent_result_text="The answer is 12. Do not refer to answer.md.",
+    )
     parsed_plan = extract_json_object(
         '```json\n{"agent_instruction": "Use the saved image.", "output_contract": "Return JSON.", "wrapper_notes": "ok"}\n```'
     )
@@ -178,20 +196,41 @@ def main() -> int:
     api_agent_workspace = api_run_dir / "agent_workspace" if api_run_dir else None
     api_agent_trace_dir = api_run_dir / "agent_trace" if api_run_dir else None
     api_saved_image = api_agent_workspace / "inputs" / "images" / "image_000.png" if api_agent_workspace else None
+    api_second_saved_image = api_agent_workspace / "inputs" / "images" / "image_001.png" if api_agent_workspace else None
 
     ok = (
-        prepared.image_paths == ["inputs/images/image_000.png"]
+        prepared.image_paths == ["inputs/images/image_000.png", "inputs/images/image_001.png"]
         and saved_image.exists()
+        and second_saved_image.exists()
         and prepared.initial_content_parts
+        and len(prepared.initial_content_parts) == 4
         and input_wrapper_messages[1]["content"].find("response_format") >= 0
-        and passthrough_plan["agent_instruction"].find("What color is the image?") >= 0
+        and "self-contained" in agent_prompt
+        and "must not depend on local files as the only carrier" in agent_prompt
+        and "self-contained" in output_wrapper_messages[0]["content"]
+        and "must not depend on" in output_wrapper_messages[0]["content"]
+        and passthrough_plan["agent_instruction"].find("Compare the two images.") >= 0
         and passthrough_plan["wrapper_notes"].find("Input wrapper disabled") >= 0
         and parsed_plan["output_contract"] == "Return JSON."
         and response["choices"][0]["message"]["content"] == '{"answer":"white"}'
         and session.get("result_text") == "Final answer: white"
         and isinstance(first_user_content, list)
-        and any(isinstance(part, dict) and part.get("type") == "image_url" for part in first_user_content)
+        and any(
+            isinstance(part, dict)
+            and part.get("type") == "text"
+            and "inputs/images/image_000.png" in str(part.get("text", ""))
+            for part in first_user_content
+        )
+        and any(
+            isinstance(part, dict)
+            and part.get("type") == "text"
+            and "inputs/images/image_001.png" in str(part.get("text", ""))
+            for part in first_user_content
+        )
+        and sum(1 for part in first_user_content if isinstance(part, dict) and part.get("type") == "image_url") == 2
         and "base64 omitted" in first_user_trace
+        and "inputs/images/image_000.png" in first_user_trace
+        and "inputs/images/image_001.png" in first_user_trace
         and session_state_path.exists()
         and session_state_path.parent == trace_dir
         and not (TMP_DIR / "agent_workspace" / "_session_state.json").exists()
@@ -203,6 +242,8 @@ def main() -> int:
         and api_agent_trace_dir.is_dir()
         and api_saved_image is not None
         and api_saved_image.exists()
+        and api_second_saved_image is not None
+        and api_second_saved_image.exists()
         and Path(fake_seen.get("workspace_root", "")).name == "agent_workspace"
         and Path(fake_seen.get("trace_dir", "")).name == "agent_trace"
         and (api_agent_trace_dir / "api_trace.jsonl").exists()
@@ -218,6 +259,7 @@ def main() -> int:
                 {
                     "image_paths": prepared.image_paths,
                     "saved_image_exists": saved_image.exists(),
+                    "second_saved_image_exists": second_saved_image.exists(),
                     "input_wrapper_messages": input_wrapper_messages,
                     "passthrough_plan": passthrough_plan,
                     "parsed_plan": parsed_plan,

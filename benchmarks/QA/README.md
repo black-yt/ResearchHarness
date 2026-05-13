@@ -7,14 +7,14 @@ tasks.
 The recommended integration is the OpenAI-compatible synchronous API server:
 
 ```bash
-python3 /abs/path/to/ResearchHarness/serve_openai.py \
+python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs
 ```
 
 For QA/VQA benchmark runs, optionally add this benchmark role prompt:
 
 ```bash
-python3 /abs/path/to/ResearchHarness/serve_openai.py \
+python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs \
   --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/QA/role_prompt.md
 ```
@@ -42,7 +42,7 @@ Strict-format benchmarks should usually keep both wrappers enabled. To return
 the agent's direct final text instead, run:
 
 ```bash
-python3 /abs/path/to/ResearchHarness/serve_openai.py \
+python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs \
   --no-input-wrapper \
   --no-output-wrapper
@@ -66,7 +66,7 @@ answer = response.choices[0].message.content
 ## Multimodal Input
 
 For image benchmarks, send OpenAI-style content parts. The first API version
-supports `data:image/...;base64,...` URLs.
+supports one or more `data:image/...;base64,...` URLs in the same request.
 
 ```python
 response = client.chat.completions.create(
@@ -83,9 +83,14 @@ response = client.chat.completions.create(
 )
 ```
 
-The API saves each submitted image under `agent_workspace/inputs/images/` and
-also passes the image content to the first ResearchHarness model call when the
-backend model supports image parts.
+The API saves each submitted image under `agent_workspace/inputs/images/`,
+passes the image content to the first ResearchHarness model call when the
+backend model supports image parts, and includes each saved path in the
+agent-visible text.
+
+The returned answer should be self-contained for a remote evaluator. Workspace
+files may support the run, but the response should not only say to consult
+`answer.md`, `report.md`, an image file, or another local artifact.
 
 ## Scope
 
