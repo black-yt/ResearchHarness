@@ -74,8 +74,8 @@ class AgentSessionState:
         }
 
 
-def resolve_session_state_path(workspace_root: str | Path) -> Path:
-    return Path(workspace_root) / SESSION_STATE_FILENAME
+def resolve_session_state_path(trace_dir: str | Path) -> Path:
+    return Path(trace_dir) / SESSION_STATE_FILENAME
 
 
 def persist_session_state(path: str | Path, state: AgentSessionState) -> None:

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from test_support import TEST_RUNS_DIR, bootstrap, load_trace_records, preview
+from test_support import TEST_RUNS_DIR, bootstrap, load_trace_records, preview, single_trace_path
 
 
 TMP_DIR = TEST_RUNS_DIR / "edge_case_checks"
@@ -336,7 +336,7 @@ def check_parallel_readimage_tool_message_order() -> tuple[bool, str]:
         session.get("termination") == "result"
         and session.get("result_text") == "done"
         and roles_after_assistant[:7] == ["assistant", "tool", "tool", "tool", "user", "user", "user"]
-        and roles_after_assistant[-1] == "assistant"
+        and len(roles_after_assistant) == 7
     )
     return ok, detail
 
@@ -427,6 +427,117 @@ def check_deepseek_readimage_falls_back_to_text_only_context() -> tuple[bool, st
         session.get("termination") == "result"
         and session.get("result_text") == "done"
         and fallback_user_message is not None
+    )
+    return ok, detail
+
+
+def check_old_image_parts_are_omitted_from_followup_requests_but_traced() -> tuple[bool, str]:
+    from agent_base.react_agent import MultiTurnReactAgent
+
+    case_dir = TMP_DIR / "old_image_parts_omitted"
+    trace_dir = TMP_DIR / "old_image_parts_omitted_trace"
+    shutil.rmtree(case_dir, ignore_errors=True)
+    shutil.rmtree(trace_dir, ignore_errors=True)
+    case_dir.mkdir(parents=True, exist_ok=True)
+    trace_dir.mkdir(parents=True, exist_ok=True)
+
+    first_image = "data:image/png;base64,Zmlyc3Q="
+    second_image = "data:image/png;base64,c2Vjb25k"
+
+    class FakeAgent(MultiTurnReactAgent):
+        def __init__(self):
+            super().__init__(
+                function_list=["ReadImage"],
+                llm={
+                    "model": "fake-vision-model",
+                    "generate_cfg": {
+                        "max_input_tokens": 10000,
+                        "max_retries": 1,
+                        "temperature": 0.0,
+                        "top_p": 1.0,
+                        "presence_penalty": 0.0,
+                    },
+                },
+                trace_dir=str(trace_dir),
+            )
+            self.calls: list[list[dict]] = []
+
+        def call_llm_api(self, msgs, max_tries=10, runtime_deadline=None):
+            self.calls.append(json.loads(json.dumps(msgs)))
+            if len(self.calls) == 1:
+                return {
+                    "status": "ok",
+                    "finish_reason": "tool_calls",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_img",
+                            "type": "function",
+                            "function": {
+                                "name": "ReadImage",
+                                "arguments": json.dumps({"path": "second.png"}),
+                            },
+                        }
+                    ],
+                }
+            return {
+                "status": "ok",
+                "finish_reason": "stop",
+                "content": "done",
+                "tool_calls": [],
+            }
+
+        def custom_call_tool(self, tool_name: str, tool_args: object, **kwargs):
+            return {
+                "kind": "image_tool_result",
+                "text": f"path: {case_dir / 'second.png'}\nllm_image_attached: true",
+                "path": str(case_dir / "second.png"),
+                "image_url": second_image,
+            }
+
+    agent = FakeAgent()
+    session = agent._run_session(
+        "inspect images",
+        workspace_root=str(case_dir),
+        initial_content_parts=[{"type": "image_url", "image_url": {"url": first_image, "detail": "auto"}}],
+    )
+    second_call = agent.calls[1] if len(agent.calls) > 1 else []
+    second_call_text = json.dumps(second_call, ensure_ascii=False)
+    trace_records = load_trace_records(single_trace_path(trace_dir))
+    llm_records = [row for row in trace_records if row.get("capture_type") == "llm_call"]
+    last_payload = llm_records[-1].get("payload", {}) if llm_records else {}
+    request_text = json.dumps(last_payload.get("request_messages", []), ensure_ascii=False)
+    image_aging = last_payload.get("image_aging", {})
+    image_aging_text = json.dumps(image_aging, ensure_ascii=False)
+    session_state_text = (trace_dir / "_session_state.json").read_text(encoding="utf-8")
+    ok = (
+        session.get("termination") == "result"
+        and first_image not in second_call_text
+        and second_image in second_call_text
+        and "Previous image omitted" in second_call_text
+        and first_image not in request_text
+        and "full_messages_before_request" not in last_payload
+        and image_aging.get("omitted_image_count") == 1
+        and first_image not in image_aging_text
+        and "base64 omitted" in image_aging_text
+        and first_image in session_state_text
+        and second_image in session_state_text
+    )
+    detail = json.dumps(
+        {
+            "termination": session.get("termination"),
+            "second_call_contains_first_image": first_image in second_call_text,
+            "second_call_contains_second_image": second_image in second_call_text,
+            "request_contains_first_image": first_image in request_text,
+            "has_full_messages_before_request": "full_messages_before_request" in last_payload,
+            "image_aging": image_aging,
+            "image_aging_contains_first_image": first_image in image_aging_text,
+            "session_state_contains_first_image": first_image in session_state_text,
+            "session_state_contains_second_image": second_image in session_state_text,
+            "second_call": second_call,
+        },
+        ensure_ascii=False,
+        indent=2,
     )
     return ok, detail
 
@@ -1680,6 +1791,7 @@ def main() -> int:
         ("LLM hard timeout", check_llm_hard_timeout_interrupts_blocking_call),
         ("Parallel ReadImage tool order", check_parallel_readimage_tool_message_order),
         ("DeepSeek ReadImage fallback", check_deepseek_readimage_falls_back_to_text_only_context),
+        ("Old image parts omitted but traced", check_old_image_parts_are_omitted_from_followup_requests_but_traced),
         ("Reasoning content preserved", check_reasoning_content_is_preserved_across_tool_rounds),
         ("Reasoning content preserved on invalid retry", check_reasoning_content_is_preserved_across_invalid_retry_turns),
         ("Mixed text and tool calls executed", check_mixed_text_and_tool_calls_are_executed),

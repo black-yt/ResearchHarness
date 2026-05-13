@@ -398,10 +398,10 @@ class TerminalStart(ToolBase):
     parameters = {
         "type": "object",
         "properties": {
-                "cwd": {
-                    "type": "string",
-                    "description": "Optional working directory for the terminal session. Default is the current workspace root.",
-                },
+            "cwd": {
+                "type": "string",
+                "description": "Optional working directory for the terminal session. Default is the current workspace root.",
+            },
             "shell": {
                 "type": "string",
                 "description": "Optional shell executable path. Default is bash.",

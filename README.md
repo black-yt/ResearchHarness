@@ -41,6 +41,7 @@ and easy to trust as infrastructure.
 - [🏗 Project Structure](#-project-structure)
 - [📦 Installation and Configuration](#-installation-and-configuration)
 - [🖥 CLI Usage](#-cli-usage)
+- [🎛 Local Frontend UI](#-local-frontend-ui)
 - [🚀 OpenAI-Compatible API Deployment](#-openai-compatible-api-deployment)
 - [🧠 How It Works](#-how-it-works)
 - [🛠 Tool Surface](#-tool-surface)
@@ -73,6 +74,8 @@ If you are new to the project, the recommended reading order is:
 
 ## 📰 News
 
+- **2026-05-13: Local browser frontend**
+  ResearchHarness now includes a one-command local chat UI for interactive agent runs. It streams assistant/tool steps in real time, runs directly inside a selected local workspace, supports image attachments, and handles `AskUser` replies through the same chat input box.
 - **2026-05-12: OpenAI-compatible API server**
   ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and uses input/output LLM wrappers to keep agent execution stable and final answers format-compliant.
 - **2026-04-30: Interactive `AskUser` tool**
@@ -174,8 +177,10 @@ Start here if you are reading the codebase for the first time.
 ### Core runtime
 
 - [run_agent.py](run_agent.py): thin command-line entrypoint for direct agent runs
+- [run_frontend.py](run_frontend.py): one-command launcher for the local browser UI
 - [serve_openai.py](serve_openai.py): OpenAI-compatible API server entrypoint
 - [api/openai_server.py](api/openai_server.py): `/v1/chat/completions` request handling, wrappers, and per-request run directories
+- [frontend/](frontend): local WebSocket UI, static assets, and browser AskUser bridge
 - [agent_base/react_agent.py](agent_base/react_agent.py): main ReAct loop, model calls, tool-call handling, trace/session state integration
 - [agent_base/base.py](agent_base/base.py): base agent hooks for extension and benchmark adapters
 - [agent_base/prompt.py](agent_base/prompt.py): base system prompt composition
@@ -305,6 +310,35 @@ MINERU_TOKEN="your_mineru_token"
 Sampling defaults and retry policy live in code. Override them programmatically
 when needed instead of storing them in `.env`.
 
+### Configuration Precedence
+
+ResearchHarness uses explicit runtime arguments before ambient defaults:
+
+```text
+command-line arguments > process environment variables > .env > code defaults
+```
+
+Details:
+
+- If a setting exists both as a command-line argument and an environment-level
+  default, the command-line argument wins for that run. For example,
+  `--workspace-root` overrides `WORKSPACE_ROOT`.
+- Process environment variables already exported in the shell are not
+  overwritten by `.env`.
+- `.env` fills missing environment variables only; it is a convenient local
+  default file, not a higher-priority override layer.
+- `--trace-dir` has no environment-variable equivalent. Trace/session state is
+  written only when this argument is supplied in direct CLI runs.
+- `--api-runs-dir` is required for the OpenAI-compatible API server and is not
+  inferred from `WORKSPACE_ROOT`.
+- In frontend mode, the workspace is selected in the browser, but other
+  meaningful agent options remain command-line options. Use
+  `--role-prompt-file` to append role guidance and `--trace-dir` to persist
+  frontend agent traces.
+- Model and sampling settings such as `API_KEY`, `API_BASE`, `MODEL_NAME`,
+  `TEMPERATURE`, `MAX_INPUT_TOKENS`, and `LLM_MAX_OUTPUT_TOKENS` currently come
+  from environment variables or `.env`, not from direct CLI flags.
+
 ### Extending the Base Agent
 
 The harness keeps the base system prompt focused on tool calling, local
@@ -377,6 +411,46 @@ opening trace files:
 - runtime correction messages when a turn is invalid
 
 This makes direct harness runs readable without requiring debug-only logs.
+
+---
+
+## 🎛 Local Frontend UI
+
+For interactive local use, run the browser UI instead of the OpenAI-compatible
+API server:
+
+```bash
+python3 run_frontend.py
+```
+
+The launcher binds to `127.0.0.1:8765` and opens the browser automatically. To
+choose a different port or keep the browser closed:
+
+```bash
+python3 run_frontend.py --port 8766 --no-browser
+```
+
+Useful agent options are also available in frontend mode:
+
+```bash
+python3 run_frontend.py \
+  --trace-dir ./traces \
+  --role-prompt-file benchmarks/QA/role_prompt.md
+```
+
+The frontend keeps only the current conversation in the page. It runs the agent
+directly in the selected existing workspace folder, streams assistant rounds and
+tool results over WebSocket, supports `AskUser` replies through the same chat
+input box, and accepts image attachments by file picker, drag-and-drop, or paste.
+
+The workspace picker is an in-page directory browser backed by the local server,
+not a native OS dialog. It supports Unicode paths, including Chinese folder
+names, and you can still paste a folder path manually when that is faster.
+
+Attached images are sent to the model as OpenAI-style `image_url` content parts.
+They are also saved under `.rh_frontend_inputs/images/` inside the workspace so
+the agent can inspect them with `ReadImage` when tool-based image reading is
+needed.
 
 ---
 
@@ -760,6 +834,7 @@ RESEARCHHARNESS_TEST_PYTHON="/path/to/your/python"
 | Local tool validation | `python3 tests/test_local_tools_validation.py` |
 | Direct toolchain validation | `python3 tests/test_toolchain_validation.py` |
 | OpenAI-compatible API checks | `python3 tests/test_openai_api_checks.py` |
+| Local frontend checks | `python3 tests/test_frontend_checks.py` |
 | End-to-end multi-tool test | `python3 tests/test_end_to_end_multitool.py` |
 | End-to-end local file discovery test | `python3 tests/test_end_to_end_glob_grep.py` |
 | End-to-end write/edit test | `python3 tests/test_end_to_end_write_edit.py` |

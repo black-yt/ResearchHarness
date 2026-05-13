@@ -6,7 +6,7 @@ import signal
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Type
+from typing import Any, Callable, Dict, List, Optional, Sequence, Type
 
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError
 import tiktoken
@@ -28,6 +28,7 @@ from agent_base.utils import (
     MissingRequiredEnvError,
     env_flag,
     load_dotenv,
+    read_role_prompt_files,
     require_required_env,
     safe_jsonable,
 )
@@ -171,6 +172,92 @@ def message_trace_text(content: Any) -> str:
     return "\n".join(text for text in text_parts if text)
 
 
+def _message_has_image_content(message: dict[str, Any]) -> bool:
+    content = message.get("content")
+    return isinstance(content, list) and any(isinstance(part, dict) and part.get("type") == "image_url" for part in content)
+
+
+def _last_assistant_message_index(messages: Sequence[dict[str, Any]]) -> int:
+    for index in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[index], dict) and messages[index].get("role") == "assistant":
+            return index
+    return -1
+
+
+def _image_reference_summary(part: dict[str, Any]) -> str:
+    image_url = part.get("image_url", {})
+    url = image_url.get("url", "") if isinstance(image_url, dict) else ""
+    url_text = str(url)
+    if url_text.startswith("data:image/"):
+        return url_text.split(",", 1)[0] + ",...(base64 omitted)"
+    elif len(url_text) > 180:
+        return url_text[:180] + "...(truncated)"
+    return url_text or "unavailable"
+
+
+def _omitted_image_part_text(part: dict[str, Any]) -> str:
+    url_text = _image_reference_summary(part)
+    return (
+        "[Previous image omitted from this model request to avoid repeatedly resending image bytes. "
+        f"Original image reference: {url_text}. "
+        "The nearby conversation text or tool metadata records saved local paths when available; "
+        "use ReadImage on the saved path if visual details are needed again.]"
+    )
+
+
+def _replace_image_parts_with_text(content: Any, *, message_index: int) -> tuple[Any, list[dict[str, Any]]]:
+    if not isinstance(content, list):
+        return content, []
+    replacement: list[Any] = []
+    omitted_images: list[dict[str, Any]] = []
+    image_index = 0
+    for part in content:
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            omitted_images.append(
+                {
+                    "message_index": message_index,
+                    "image_index": image_index,
+                    "reference_summary": _image_reference_summary(part),
+                }
+            )
+            replacement.append({"type": "text", "text": _omitted_image_part_text(part)})
+        else:
+            replacement.append(safe_jsonable(part))
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            image_index += 1
+    return replacement, omitted_images
+
+
+def prepare_messages_for_llm(messages: Sequence[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Return request messages with old image bytes replaced by text references.
+
+    Image content parts are only needed immediately after they enter the
+    conversation. Older image parts stay represented as text so the agent can
+    re-read saved paths with ReadImage without resending the image every round.
+    """
+    last_assistant_index = _last_assistant_message_index(messages)
+    request_messages: list[dict[str, Any]] = []
+    omitted_images: list[dict[str, Any]] = []
+    for index, raw_message in enumerate(messages):
+        message = safe_jsonable(raw_message)
+        if not isinstance(message, dict):
+            request_messages.append({"role": "user", "content": str(message)})
+            continue
+        if index <= last_assistant_index and _message_has_image_content(message):
+            message = dict(message)
+            message["content"], message_omitted_images = _replace_image_parts_with_text(
+                message.get("content"),
+                message_index=index,
+            )
+            omitted_images.extend(message_omitted_images)
+        request_messages.append(message)
+    image_aging = {
+        "omitted_image_count": len(omitted_images),
+        "omitted_images": omitted_images,
+    }
+    return request_messages, image_aging
+
+
 def assistant_reasoning_content(message: Any) -> Optional[Any]:
     if hasattr(message, "model_dump"):
         try:
@@ -205,17 +292,21 @@ def input_tokens_from_usage(usage: Any) -> Optional[int]:
 def llm_call_trace_payload(
     *,
     request_messages: Sequence[dict[str, Any]],
+    image_aging: Optional[dict[str, Any]] = None,
     response: Any,
     model_name: str,
     native_tools: Sequence[dict[str, Any]],
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "model_name": model_name,
         "request_messages": safe_jsonable(list(request_messages)),
         "tools_enabled": bool(native_tools),
         "native_tools": safe_jsonable(list(native_tools)),
         "response": safe_jsonable(response),
     }
+    if image_aging and int(image_aging.get("omitted_image_count", 0) or 0) > 0:
+        payload["image_aging"] = safe_jsonable(image_aging)
+    return payload
 
 
 def compaction_trace_payload(
@@ -886,8 +977,8 @@ class MultiTurnReactAgent(BaseAgent):
                 return finalize(result_text, termination, error=termination)
             round_index += 1
             num_llm_calls_available -= 1
-            llm_request_messages = safe_jsonable(messages)
-            llm_reply = self.call_llm_api(messages, runtime_deadline=runtime_deadline)
+            llm_request_messages, image_aging = prepare_messages_for_llm(messages)
+            llm_reply = self.call_llm_api(llm_request_messages, runtime_deadline=runtime_deadline)
             trace_writer.append(
                 role="runtime",
                 text="",
@@ -895,6 +986,7 @@ class MultiTurnReactAgent(BaseAgent):
                 capture_type="llm_call",
                 payload=llm_call_trace_payload(
                     request_messages=llm_request_messages,
+                    image_aging=image_aging,
                     response=llm_reply,
                     model_name=self.model,
                     native_tools=self._native_tools,
@@ -1150,14 +1242,6 @@ class MultiTurnReactAgent(BaseAgent):
         return execute_tool_by_name(self.tool_map, tool_name, tool_args, **kwargs)
 
 
-def _read_role_prompt_files(paths: Iterable[str]) -> str:
-    blocks: list[str] = []
-    for raw_path in paths:
-        path = Path(str(raw_path)).expanduser()
-        blocks.append(path.read_text(encoding="utf-8").strip())
-    return "\n\n".join(block for block in blocks if block.strip())
-
-
 def _path_has_suffix(path: Path, suffix_parts: Sequence[str]) -> bool:
     normalized_parts = tuple(part.casefold() for part in path.parts)
     normalized_suffix = tuple(part.casefold() for part in suffix_parts)
@@ -1206,7 +1290,7 @@ def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str],
 
     if not prompt_text:
         raise ValueError("A non-empty prompt is required via positional args or --prompt-file.")
-    role_prompt = _read_role_prompt_files(args.role_prompt_files)
+    role_prompt = read_role_prompt_files(args.role_prompt_files)
     return (
         prompt_text,
         args.trace_dir,

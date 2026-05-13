@@ -4,7 +4,7 @@ import os
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -72,6 +72,21 @@ def require_required_env(context: str = "ResearchHarness") -> None:
         f"{context} missing required environment variables: {', '.join(missing)}. "
         "Set them in .env or the process environment before running."
     )
+
+
+def read_role_prompt_files(paths: Iterable[str]) -> str:
+    blocks: list[str] = []
+    for raw_path in paths:
+        path_text = str(raw_path).strip()
+        if not path_text:
+            continue
+        path = Path(path_text).expanduser()
+        if not path.exists():
+            raise ValueError(f"Role prompt file does not exist: {path}")
+        if not path.is_file():
+            raise ValueError(f"Role prompt path is not a file: {path}")
+        blocks.append(path.read_text(encoding="utf-8").strip())
+    return "\n\n".join(block for block in blocks if block.strip())
 
 
 def safe_jsonable(value: Any) -> Any:

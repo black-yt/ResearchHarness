@@ -23,7 +23,7 @@ from agent_base.react_agent import (
     model_supports_runtime_image_parts,
 )
 from agent_base.tools.tooling import normalize_workspace_root
-from agent_base.utils import append_jsonl, safe_jsonable
+from agent_base.utils import append_jsonl, read_role_prompt_files, safe_jsonable
 
 
 DATA_IMAGE_RE = re.compile(r"^data:(image/[A-Za-z0-9.+-]+);base64,(.*)$", re.DOTALL)
@@ -99,14 +99,6 @@ def openai_error_response(exc: OpenAICompatError) -> JSONResponse:
         status_code=exc.status_code,
         content={"error": {"message": exc.message, "type": exc.error_type}},
     )
-
-
-def read_role_prompt_files(paths: list[str]) -> str:
-    blocks: list[str] = []
-    for raw_path in paths:
-        path = Path(raw_path).expanduser()
-        blocks.append(path.read_text(encoding="utf-8").strip())
-    return "\n\n".join(block for block in blocks if block)
 
 
 def make_chat_completion_response(*, request_id: str, model: str, content: str) -> dict[str, Any]:
@@ -359,9 +351,9 @@ def final_max_tokens(payload: dict[str, Any]) -> Optional[int]:
     return value
 
 
-def append_api_event(workspace_root: Path, event: str, payload: dict[str, Any]) -> None:
+def append_api_event(trace_dir: Path, event: str, payload: dict[str, Any]) -> None:
     append_jsonl(
-        workspace_root / "api_trace.jsonl",
+        trace_dir / "api_trace.jsonl",
         {
             "timestamp": int(time.time()),
             "event": event,

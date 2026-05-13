@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import requests
 import tiktoken
@@ -102,6 +102,7 @@ class WebSearch(ToolBase):
                 "items": {
                     "type": "string",
                 },
+                "minItems": 1,
                 "description": "Array of query strings. Include multiple complementary search queries in a single call.",
             },
         },

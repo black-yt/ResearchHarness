@@ -6,6 +6,7 @@ api_runs/*
 !api_runs/.gitkeep
 traces/*
 !traces/.gitkeep
+.rh_frontend_inputs/
 data/
 benchmarks/**/local_*.py
 .idea/
