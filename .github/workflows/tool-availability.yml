@@ -15,6 +15,7 @@ jobs:
     name: Full tool availability
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: test_keys
 
     env:
       API_KEY: ${{ secrets.API_KEY }}
