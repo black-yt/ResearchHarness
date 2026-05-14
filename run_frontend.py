@@ -27,11 +27,19 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="Append one role-specific prompt file to the frontend agent. May be passed multiple times.",
     )
+    parser.add_argument(
+        "--extra-tool",
+        action="append",
+        default=[],
+        dest="extra_tools",
+        metavar="NAME",
+        help="Enable one optional extra tool in frontend runs. Currently supported: str_replace_editor. May be passed multiple times.",
+    )
     args = parser.parse_args(argv)
 
     try:
         role_prompt = read_role_prompt_files(args.role_prompt_files)
-        configure_frontend(role_prompt=role_prompt, trace_dir=args.trace_dir)
+        configure_frontend(role_prompt=role_prompt, trace_dir=args.trace_dir, extra_tools=list(args.extra_tools))
     except (OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

@@ -51,6 +51,14 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_MAX_CONCURRENT_RUNS,
         help=f"Maximum concurrent agent runs handled by this server process. Defaults to {DEFAULT_MAX_CONCURRENT_RUNS}.",
     )
+    parser.add_argument(
+        "--extra-tool",
+        action="append",
+        default=[],
+        dest="extra_tools",
+        metavar="NAME",
+        help="Enable one optional extra tool for every API run. Currently supported: str_replace_editor. May be passed multiple times.",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv(PROJECT_ROOT / ".env")
@@ -64,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
             input_wrapper=args.input_wrapper,
             output_wrapper=args.output_wrapper,
             max_concurrent_runs=args.max_concurrent_runs,
+            extra_tools=list(args.extra_tools),
         )
     except (MissingRequiredEnvError, ValueError) as exc:
         print(str(exc), file=sys.stderr)

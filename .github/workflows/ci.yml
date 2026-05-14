@@ -48,6 +48,9 @@ jobs:
       - name: Run edge-case checks
         run: python tests/test_edge_case_checks.py
 
+      - name: Run optional extra-tool checks
+        run: python tests/test_extra_tools.py
+
   main-agent-api:
     name: Main agent API smoke
     runs-on: ubuntu-latest

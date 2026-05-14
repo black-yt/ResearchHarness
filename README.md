@@ -85,34 +85,40 @@ If you are new to the project, the recommended reading order is:
 
 ## 📰 News
 
-- **2026-05-14: WebFetch is now deterministic fetch-only**
-  `WebFetch` no longer performs a hidden LLM summarization pass. It now uses a URL-only interface plus optional `start_line`, `end_line`, and `max_chars` controls. It returns cleaned, range-bounded webpage text with line and truncation metadata, so the main agent can inspect the evidence directly and request narrower ranges when needed.
-- **2026-05-14: API server no longer serializes long agent runs**
-  `/v1/chat/completions` now dispatches synchronous agent runs through a configurable thread pool instead of blocking the FastAPI event loop. Use `--max-concurrent-runs` to raise throughput when local resources and backend API quota allow it.
-- **2026-05-14: API wrappers are opt-in by default**
-  The default OpenAI-compatible deployment now runs as a transparent ResearchHarness agent service without input/output wrappers. For QA/VQA benchmark deployment, using `benchmarks/QA/role_prompt.md --input-wrapper --output-wrapper` is recommended when single-LLM-style, format-compliant answers are needed.
-- **2026-05-14: Per-request and per-run model routing**
-  The OpenAI-compatible API now accepts `model="RH"` for the default backend model and `model="RH--<llm-model-name>"` for a request-local override. The selected backend model is used consistently by enabled wrappers, the agent loop, and compaction without mutating global environment variables. The local frontend and hosted Space also expose a per-run model dropdown.
-- **2026-05-14: API request-level workspace roots**
-  OpenAI-compatible API requests can now pass `extra_body={"workspace-root": "/abs/path/to/existing/workspace"}` to run inside a prepared workspace. The server still creates an independent per-request `agent_trace/` under `--api-runs-dir`, and invalid or missing workspace roots fall back to the default isolated `agent_workspace/`.
-- **2026-05-13: Frontend math rendering**
-  The local browser frontend and hosted Space now render common LaTeX math delimiters in final assistant Markdown answers, including `$$...$$`, `\(...\)`, and `\[...\]`, while leaving tool outputs and runtime logs unchanged.
-- **2026-05-13: Local browser frontend and conversational CLI**
-  ResearchHarness now includes a one-command local chat UI for interactive agent runs. It streams assistant/tool steps in real time, runs directly inside a selected local workspace, supports image attachments, handles `AskUser` replies through the same chat input box, and lets users continue after a final answer without losing prior context. Frontend runs can be interrupted with **Stop** and resumed from the preserved context; interactive CLI runs can use `Ctrl+C` to interrupt the current run and continue chatting. CLI step output now uses compact colored boxes for assistant/tool/runtime events. API deployment remains intentionally one request -> one answer.
-- **2026-05-12: OpenAI-compatible API server**
-  ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and can optionally use input/output LLM wrappers for strict benchmark-style answer formatting.
-- **2026-04-30: Interactive `AskUser` tool**
-  ResearchHarness now includes an `AskUser` native tool for essential human clarification in interactive runs, while the ResearchClawBench adapter explicitly excludes it to keep benchmark runs non-interactive.
-- **2026-04-30: Workspace roots are created automatically**
-  Explicit `workspace_root` paths are now created at run startup when missing, while tool path resolution still stays bounded inside the workspace.
-- **2026-04-25: Automatic context compaction for long runs**
-  ResearchHarness now supports built-in context compaction for long multi-step tasks instead of relying only on a growing raw message list.
-- **2026-04-25: Configurable compaction trigger**
-  The default compaction trigger is `128k`, and you can override it with `AUTO_COMPACT_TRIGGER_TOKENS=16k` or `llm.generate_cfg["compact_trigger_tokens"] = "32k"`.
-- **2026-04-25: Training-ready trace capture**
-  The existing `trace_*.jsonl` format now records full `llm_call` and `compaction` payloads in the same file, so reasoning context, tool environment, and memory-compression steps can all be reused for training or distillation.
-- **2026-04-25: Preserved compact memory**
-  Compaction outputs are still written into session state, and the trace now captures the compaction request/response path as an explicit training event.
+🚩 **Update** (2026-05-14) ResearchHarness now supports optional extra tools that are not loaded into the default tool set. The first one is `str_replace_editor`, an Anthropic-style plain-text editing compatibility tool enabled explicitly with `--extra-tool str_replace_editor`.
+
+🚩 **Update** (2026-05-14) `WebFetch` no longer performs a hidden LLM summarization pass. It now uses a URL-only interface plus optional `start_line`, `end_line`, and `max_chars` controls, returning cleaned, range-bounded webpage text for direct agent inspection.
+
+🚩 **Update** (2026-05-14) `/v1/chat/completions` now dispatches synchronous agent runs through a configurable thread pool instead of blocking the FastAPI event loop. Use `--max-concurrent-runs` to raise throughput when local resources and backend API quota allow it.
+
+🚩 **Update** (2026-05-14) API wrappers are now opt-in by default. The default deployment runs as a transparent ResearchHarness agent service, while QA/VQA benchmark deployments can still use `benchmarks/QA/role_prompt.md --input-wrapper --output-wrapper` when strict answer formatting is useful.
+
+🚩 **Update** (2026-05-14) The OpenAI-compatible API now accepts `model="RH"` for the default backend model and `model="RH--<llm-model-name>"` for a request-local override. The local frontend and hosted Space also expose a per-run model dropdown.
+
+🚩 **Update** (2026-05-14) API requests can pass `extra_body={"workspace-root": "/abs/path/to/existing/workspace"}` to run inside a prepared workspace while still writing per-request traces under `--api-runs-dir`.
+
+<details>
+<summary>👉 More News (Click to expand)</summary>
+
+🚩 **Update** (2026-05-13) The local browser frontend and hosted Space now render common LaTeX math delimiters in final assistant Markdown answers, including `$$...$$`, `\(...\)`, and `\[...\]`, while leaving tool outputs and runtime logs unchanged.
+
+🚩 **Update** (2026-05-13) ResearchHarness now includes a one-command local chat UI for interactive agent runs. It streams assistant/tool steps in real time, runs directly inside a selected local workspace, supports image attachments, handles `AskUser` replies through the same chat input box, and lets users continue after a final answer without losing prior context.
+
+🚩 **Update** (2026-05-12) ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and can optionally use input/output LLM wrappers for strict benchmark-style answer formatting.
+
+🚩 **Update** (2026-04-30) ResearchHarness now includes an `AskUser` native tool for essential human clarification in interactive runs, while the ResearchClawBench adapter explicitly excludes it to keep benchmark runs non-interactive.
+
+🚩 **Update** (2026-04-30) Explicit `workspace_root` paths are now created at run startup when missing, while tool path resolution still stays bounded inside the workspace.
+
+🚩 **Update** (2026-04-25) ResearchHarness now supports built-in context compaction for long multi-step tasks instead of relying only on a growing raw message list.
+
+🚩 **Update** (2026-04-25) The default compaction trigger is `128k`, and you can override it with `AUTO_COMPACT_TRIGGER_TOKENS=16k` or `llm.generate_cfg["compact_trigger_tokens"] = "32k"`.
+
+🚩 **Update** (2026-04-25) The existing `trace_*.jsonl` format now records full `llm_call` and `compaction` payloads in the same file, so reasoning context, tool environment, and memory-compression steps can all be reused for training or distillation.
+
+🚩 **Update** (2026-04-25) Compaction outputs are still written into session state, and the trace now captures the compaction request/response path as an explicit training event.
+
+</details>
 
 ---
 
@@ -904,6 +910,7 @@ More detailed tool documentation lives in [agent_base/tools/README.md](agent_bas
 | Local files | `Glob`, `Grep`, `Read`, `ReadPDF`, `ReadImage`, `Write`, `Edit` | Discover files, inspect text/PDF/image content, and create or modify workspace artifacts. |
 | Local execution | `Bash`, `TerminalStart`, `TerminalWrite`, `TerminalRead`, `TerminalInterrupt`, `TerminalKill` | Run one-shot commands or manage persistent terminal sessions for longer local workflows. |
 | Human interaction | `AskUser` | Ask for necessary clarification in interactive runs; benchmark adapters can disable it for non-interactive evaluation. |
+| Optional compatibility | `str_replace_editor` | Not loaded by default. Enable with `--extra-tool str_replace_editor` when an external harness expects that exact editing protocol. |
 
 ```mermaid
 mindmap
@@ -929,6 +936,8 @@ mindmap
       TerminalKill
     Human
       AskUser
+    Optional
+      str_replace_editor
 ```
 
 ---
@@ -949,6 +958,7 @@ RESEARCHHARNESS_TEST_PYTHON="/path/to/your/python"
 | Tool availability | `python3 tests/test_tool_availability.py --json` |
 | Local tool validation | `python3 tests/test_local_tools_validation.py` |
 | Direct toolchain validation | `python3 tests/test_toolchain_validation.py` |
+| Optional extra-tool checks | `python3 tests/test_extra_tools.py` |
 | OpenAI-compatible API checks | `python3 tests/test_openai_api_checks.py` |
 | Local frontend checks | `python3 tests/test_frontend_checks.py` |
 | End-to-end multi-tool test | `python3 tests/test_end_to_end_multitool.py` |

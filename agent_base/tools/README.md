@@ -1,10 +1,11 @@
 # Tools
 
-This document describes the tool surface exposed to the model. Tool names use PascalCase consistently.
+This document describes the default tool surface exposed to the model. Default tool names use PascalCase consistently. Optional compatibility tools may use their external protocol names.
 
 The current implementation is grouped by category:
 
 - `agent_base/tools/tool_file.py`
+- `agent_base/tools/tool_extra.py`
 - `agent_base/tools/tool_runtime.py`
 - `agent_base/tools/tool_user.py`
 - `agent_base/tools/tool_web.py`
@@ -31,6 +32,10 @@ The current tool set is:
 - `TerminalInterrupt`
 - `TerminalKill`
 
+Optional extra tools are not loaded by default. Enable them explicitly with `--extra-tool NAME`.
+
+- `str_replace_editor`
+
 ## Tool Matrix
 
 | Tool | Category | Arguments | Description | Return Shape / Notes |
@@ -52,6 +57,7 @@ The current tool set is:
 | `TerminalRead` | Runtime | `session_id`, `yield_time_ms?`, `max_output_chars?` | Read unread output from an existing persistent terminal session. | Useful when a process is still running and output arrives over time. |
 | `TerminalInterrupt` | Runtime | `session_id`, `max_output_chars?` | Send `Ctrl-C` to the foreground process in a terminal session without destroying the session. | Use when a long-running process must be interrupted but the shell should remain alive. |
 | `TerminalKill` | Runtime | `session_id`, `force?` | Terminate a persistent terminal session and release resources. | Final cleanup step for terminal sessions that are no longer needed. |
+| `str_replace_editor` | Optional compatibility | `command`, `path`, `file_text?`, `old_str?`, `new_str?`, `insert_line?`, `view_range?` | Anthropic-style plain-text editor compatibility tool. | Not loaded by default. Enable with `--extra-tool str_replace_editor`. Requires absolute paths inside the workspace. |
 
 ## Glob
 
@@ -444,6 +450,32 @@ Behavior:
 - Returns an explicit unavailable message instead of blocking when no interactive terminal exists.
 - Not available in ResearchClawBench runs.
 
+## str_replace_editor
+
+Purpose:
+
+- Provide an optional compatibility editor for external agents that expect a `str_replace_editor` tool.
+- Keep compatibility editing outside the default ResearchHarness tool set.
+
+Enable:
+
+```bash
+python3 run_agent.py "..." --workspace-root ./workspace --extra-tool str_replace_editor
+python3 run_server.py --api-runs-dir ./api_runs --extra-tool str_replace_editor
+python3 run_frontend.py --extra-tool str_replace_editor
+```
+
+Behavior:
+
+- Requires absolute paths inside the active workspace.
+- Supports `view`, `create`, `str_replace`, `insert`, and `undo_edit`.
+- `str_replace` requires an exact, unique `old_str` match.
+- `create` refuses to overwrite an existing file.
+- `undo_edit` reverts the last successful edit recorded for that file by this tool instance.
+- Text files are displayed with `cat -n`-style line numbers.
+- Directory view lists non-hidden files and directories up to two levels deep.
+- PDFs are routed through `ReadPDF`; Office files use lightweight archive text extraction; audio files return metadata only.
+
 ## Suggested Usage
 
 - Use `Glob` first for pathname discovery.
@@ -455,5 +487,6 @@ Behavior:
 - Use `Write` for full-file writes.
 - Use `Bash` for one-shot system commands.
 - Use `AskUser` only when a human answer is genuinely necessary.
+- Use `str_replace_editor` only when an external compatibility layer requires that exact editing protocol.
 - Use `Terminal*` only when persistent interactive shell state is actually needed.
 - Route pure Python analysis through `Bash` rather than introducing a separate Python tool.

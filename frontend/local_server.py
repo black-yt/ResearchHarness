@@ -15,7 +15,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from agent_base.react_agent import MultiTurnReactAgent, default_llm_config
+from agent_base.react_agent import (
+    MultiTurnReactAgent,
+    default_llm_config,
+    default_tool_names,
+    resolve_extra_tool_names,
+)
 from agent_base.utils import (
     MissingRequiredEnvError,
     PROJECT_ROOT,
@@ -34,14 +39,21 @@ MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_DIRECTORY_ENTRIES = 800
 FRONTEND_ROLE_PROMPT = ""
 FRONTEND_TRACE_DIR: str | None = None
+FRONTEND_EXTRA_TOOLS: tuple[str, ...] = ()
 
 app = FastAPI(title="ResearchHarness Local UI")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="frontend-static")
 
 
-def configure_frontend(*, role_prompt: str = "", trace_dir: str | None = None) -> None:
-    global FRONTEND_ROLE_PROMPT, FRONTEND_TRACE_DIR
+def configure_frontend(
+    *,
+    role_prompt: str = "",
+    trace_dir: str | None = None,
+    extra_tools: list[str] | None = None,
+) -> None:
+    global FRONTEND_ROLE_PROMPT, FRONTEND_TRACE_DIR, FRONTEND_EXTRA_TOOLS
     FRONTEND_ROLE_PROMPT = str(role_prompt or "").strip()
+    FRONTEND_EXTRA_TOOLS = tuple(resolve_extra_tool_names(extra_tools or []))
     if trace_dir:
         path = Path(trace_dir).expanduser()
         if path.exists() and not path.is_dir():
@@ -199,6 +211,7 @@ def _run_agent_thread(
         require_required_env("ResearchHarness frontend")
         agent = FrontendInteractiveAgent(
             bridge=bridge,
+            function_list=default_tool_names(extra_tools=FRONTEND_EXTRA_TOOLS) if FRONTEND_EXTRA_TOOLS else None,
             llm=default_llm_config(model_name=model_name or None),
             trace_dir=FRONTEND_TRACE_DIR,
             role_prompt=FRONTEND_ROLE_PROMPT or None,

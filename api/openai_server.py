@@ -18,12 +18,13 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agent_base.react_agent import (
-    AVAILABLE_TOOL_MAP,
     MultiTurnReactAgent,
     assistant_text_content,
+    default_tool_names,
     default_llm_config,
     default_model_name,
     model_supports_runtime_image_parts,
+    resolve_extra_tool_names,
 )
 from agent_base.tools.tooling import normalize_workspace_root
 from agent_base.utils import append_jsonl, image_input_content_parts, read_role_prompt_files, safe_jsonable
@@ -106,9 +107,11 @@ class ServerConfig:
     input_wrapper: bool = False
     output_wrapper: bool = False
     max_concurrent_runs: int = DEFAULT_MAX_CONCURRENT_RUNS
+    extra_tools: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         self.max_concurrent_runs = positive_int(self.max_concurrent_runs, "max_concurrent_runs")
+        self.extra_tools = tuple(resolve_extra_tool_names(self.extra_tools))
 
 
 @dataclass
@@ -483,7 +486,7 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
             f"Backend model {backend_model!r} does not support image content parts.",
         )
 
-    tool_names = [name for name in AVAILABLE_TOOL_MAP if name != "AskUser"]
+    tool_names = default_tool_names(include_ask_user=False, extra_tools=config.extra_tools)
     agent = MultiTurnReactAgent(
         function_list=tool_names,
         llm=llm_config,
@@ -634,6 +637,7 @@ def create_app(config: ServerConfig) -> FastAPI:
             "input_wrapper": config.input_wrapper,
             "output_wrapper": config.output_wrapper,
             "max_concurrent_runs": config.max_concurrent_runs,
+            "extra_tools": list(config.extra_tools),
         }
 
     @app.post("/v1/chat/completions")
@@ -657,6 +661,7 @@ def serve(
     input_wrapper: bool = False,
     output_wrapper: bool = False,
     max_concurrent_runs: int = DEFAULT_MAX_CONCURRENT_RUNS,
+    extra_tools: Optional[list[str]] = None,
 ) -> None:
     root = normalize_workspace_root(api_runs_dir)
     role_prompt = read_role_prompt_files(role_prompt_files or [])
@@ -668,6 +673,7 @@ def serve(
         input_wrapper=input_wrapper,
         output_wrapper=output_wrapper,
         max_concurrent_runs=max_concurrent_runs,
+        extra_tools=tuple(extra_tools or ()),
     )
     app = create_app(config)
     uvicorn.run(app, host=host, port=port)

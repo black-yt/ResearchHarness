@@ -263,11 +263,11 @@ def main() -> int:
         *image_input_content_parts(cli_second_data_url, cli_second_saved_path),
     ]
     cli_prompt = append_saved_image_paths_to_prompt("Inspect the images.", [cli_saved_path, cli_second_saved_path])
-    _, _, _, _, _, parsed_image_args, parsed_chat_arg = _parse_cli_args(
+    _, _, _, _, _, parsed_image_args, parsed_chat_arg, parsed_extra_tools = _parse_cli_args(
         ["Inspect the images.", "--images", str(cli_image_source), str(cli_second_image_source)]
     )
-    _, _, _, _, _, _, parsed_chat_enabled = _parse_cli_args(["Inspect the images.", "--chat"])
-    _, _, _, _, _, _, parsed_chat_disabled = _parse_cli_args(["Inspect the images.", "--no-chat"])
+    _, _, _, _, _, _, parsed_chat_enabled, _ = _parse_cli_args(["Inspect the images.", "--chat"])
+    _, _, _, _, _, _, parsed_chat_disabled, _ = _parse_cli_args(["Inspect the images.", "--no-chat"])
     aged_messages, image_aging = prepare_messages_for_llm(
         [
             {"role": "system", "content": "system"},
@@ -293,6 +293,7 @@ def main() -> int:
                 "cli_second_saved_path": cli_second_saved_path,
                 "parsed_image_args": parsed_image_args,
                 "parsed_chat_arg": parsed_chat_arg,
+                "parsed_extra_tools": parsed_extra_tools,
                 "parsed_chat_enabled": parsed_chat_enabled,
                 "parsed_chat_disabled": parsed_chat_disabled,
                 "image_aging": image_aging,
@@ -343,6 +344,7 @@ def main() -> int:
         and interrupt_followup.get("result_text") == "continued after interrupt"
         and cli_saved_path.startswith("inputs/images/")
         and cli_second_saved_path.startswith("inputs/images/")
+        and parsed_extra_tools == []
         and (cli_workspace / cli_saved_path).exists()
         and (cli_workspace / cli_second_saved_path).exists()
         and parsed_image_args == [str(cli_image_source), str(cli_second_image_source)]

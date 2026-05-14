@@ -141,6 +141,7 @@ def main() -> int:
             self.trace_dir = Path(trace_dir)
             fake_seen["trace_dir"] = str(self.trace_dir)
             fake_seen.setdefault("trace_dirs", []).append(str(self.trace_dir))
+            fake_seen.setdefault("function_lists", []).append(list(function_list or []))
             fake_seen["model"] = str(llm.get("model", ""))
             fake_seen.setdefault("models", []).append(str(llm.get("model", "")))
 
@@ -213,6 +214,18 @@ def main() -> int:
         missing_workspace_response = run_chat_completion(
             missing_payload,
             ServerConfig(api_runs_dir=api_runs_root / "missing_workspace", input_wrapper=False, output_wrapper=False),
+        )
+        extra_tool_response = run_chat_completion(
+            {
+                "model": "RH",
+                "messages": [{"role": "user", "content": "Use the optional editor if needed."}],
+            },
+            ServerConfig(
+                api_runs_dir=api_runs_root / "extra_tool",
+                input_wrapper=False,
+                output_wrapper=False,
+                extra_tools=("str_replace_editor",),
+            ),
         )
     finally:
         openai_server.MultiTurnReactAgent = previous_agent_cls
@@ -353,7 +366,9 @@ def main() -> int:
         and not (TMP_DIR / "agent_workspace" / "_session_state.json").exists()
         and api_response["choices"][0]["message"]["content"] == '{"expression":"7 + 5","answer":12}'
         and api_response["model"] == "RH--fake-vision-model"
-        and fake_seen.get("model") == "fake-vision-model"
+        and extra_tool_response["model"] == "RH"
+        and "fake-vision-model" in fake_seen.get("models", [])
+        and any("str_replace_editor" in names and "AskUser" not in names for names in fake_seen.get("function_lists", []))
         and invalid_model_rejected
         and workspace_alias_rejected
         and default_model_label == "RH"
@@ -425,6 +440,7 @@ def main() -> int:
                     "first_user_content_type": type(first_user_content).__name__,
                     "first_user_trace": first_user_trace,
                     "api_response": api_response,
+                    "extra_tool_response": extra_tool_response,
                     "api_run_dir": str(api_run_dir) if api_run_dir else "",
                     "fake_seen": fake_seen,
                     "custom_response": custom_response,

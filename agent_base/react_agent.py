@@ -20,6 +20,7 @@ from agent_base.prompt import composed_system_prompt
 from agent_base.session_state import AgentSessionState, CompactionRecord, persist_session_state, resolve_session_state_path
 from agent_base.trace_utils import FlatTraceWriter
 from agent_base.tools.tooling import normalize_workspace_root
+from agent_base.tools.tool_extra import StrReplaceEditor
 from agent_base.tools.tool_file import Edit, Glob, Grep, Read, ReadImage, ReadPDF, Write
 from agent_base.tools.tool_runtime import Bash, TerminalInterrupt, TerminalKill, TerminalRead, TerminalStart, TerminalWrite
 from agent_base.tools.tool_user import AskUser
@@ -61,6 +62,11 @@ AVAILABLE_TOOLS = [
     TerminalKill(),
 ]
 AVAILABLE_TOOL_MAP = {tool.name: tool for tool in AVAILABLE_TOOLS}
+OPTIONAL_TOOLS = [
+    StrReplaceEditor(),
+]
+OPTIONAL_TOOL_MAP = {tool.name: tool for tool in OPTIONAL_TOOLS}
+ALL_TOOL_MAP = {**AVAILABLE_TOOL_MAP, **OPTIONAL_TOOL_MAP}
 DEFAULT_IMAGE_TOKEN_ESTIMATE = 1536
 DEFAULT_MODEL_NAME = "gpt-5.4"
 DEFAULT_MAX_LLM_CALLS = 100
@@ -395,7 +401,32 @@ def resolved_tool_names(function_list: Optional[Sequence[str]]) -> list[str]:
 
 
 def available_tool_schemas(function_list: Optional[Sequence[str]] = None) -> list[dict[str, Any]]:
-    return [tool_schema(AVAILABLE_TOOL_MAP[name]) for name in resolved_tool_names(function_list)]
+    names = resolved_tool_names(function_list)
+    unknown_tools = [name for name in names if name not in ALL_TOOL_MAP]
+    if unknown_tools:
+        raise ValueError(f"Unknown tools requested: {unknown_tools}")
+    return [tool_schema(ALL_TOOL_MAP[name]) for name in names]
+
+
+def resolve_extra_tool_names(extra_tools: Optional[Sequence[str]]) -> list[str]:
+    resolved: list[str] = []
+    for raw_name in extra_tools or []:
+        name = str(raw_name).strip()
+        if not name:
+            continue
+        if name not in OPTIONAL_TOOL_MAP:
+            raise ValueError(f"Unknown extra tool requested: {name}")
+        if name not in resolved:
+            resolved.append(name)
+    return resolved
+
+
+def default_tool_names(*, include_ask_user: bool = True, extra_tools: Optional[Sequence[str]] = None) -> list[str]:
+    names = [name for name in AVAILABLE_TOOL_MAP if include_ask_user or name != "AskUser"]
+    for name in resolve_extra_tool_names(extra_tools):
+        if name not in names:
+            names.append(name)
+    return names
 
 
 def normalized_tool_call(tool_call: Any) -> dict[str, Any]:
@@ -598,7 +629,7 @@ class MultiTurnReactAgent(BaseAgent):
         requested_tools = self.resolve_function_list(function_list)
         if requested_tools is None:
             requested_tools = list(AVAILABLE_TOOL_MAP.keys())
-        unknown_tools = [tool for tool in requested_tools if tool not in AVAILABLE_TOOL_MAP]
+        unknown_tools = [tool for tool in requested_tools if tool not in ALL_TOOL_MAP]
         if unknown_tools:
             raise ValueError(f"Unknown tools requested: {unknown_tools}")
         if "model" not in llm or not str(llm["model"]).strip():
@@ -606,7 +637,7 @@ class MultiTurnReactAgent(BaseAgent):
         if "generate_cfg" not in llm or not isinstance(llm["generate_cfg"], dict):
             raise ValueError('llm["generate_cfg"] must be a dict.')
 
-        self.tool_map = {tool_name: AVAILABLE_TOOL_MAP[tool_name] for tool_name in requested_tools}
+        self.tool_map = {tool_name: ALL_TOOL_MAP[tool_name] for tool_name in requested_tools}
         self.tool_names = list(self.tool_map.keys())
         self.model = str(llm["model"])
         self.llm_generate_cfg = llm["generate_cfg"]
@@ -1340,7 +1371,7 @@ def resolve_agent_class_for_role_prompt_files(role_prompt_files: Sequence[str]) 
     return MultiTurnReactAgent
 
 
-def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str], str, list[str], list[str], Optional[bool]]:
+def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str], str, list[str], list[str], Optional[bool], list[str]]:
     parser = argparse.ArgumentParser(description="Run the local agent directly from agent_base.react_agent.")
     parser.add_argument("prompt", nargs="*", help="Prompt text.")
     parser.add_argument("--prompt-file", help="Optional UTF-8 text file containing the prompt.")
@@ -1372,6 +1403,14 @@ def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str],
         default=None,
         help="Continue asking for follow-up user messages after each final answer. Defaults to on only in an interactive terminal.",
     )
+    parser.add_argument(
+        "--extra-tool",
+        action="append",
+        default=[],
+        dest="extra_tools",
+        metavar="NAME",
+        help="Enable one optional extra tool for this run. Currently supported: str_replace_editor. May be passed multiple times.",
+    )
     args = parser.parse_args(argv)
 
     prompt_text = ""
@@ -1391,6 +1430,7 @@ def _parse_cli_args(argv: list[str]) -> tuple[str, Optional[str], Optional[str],
         list(args.role_prompt_files),
         [path for group in args.image_paths for path in group],
         args.chat,
+        resolve_extra_tool_names(args.extra_tools),
     )
 
 
@@ -1398,9 +1438,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     load_dotenv(PROJECT_ROOT / ".env")
     try:
         require_required_env("ResearchHarness agent")
-        prompt_text, trace_dir, workspace_root, role_prompt, role_prompt_files, image_paths, chat_arg = _parse_cli_args(argv or sys.argv[1:])
+        prompt_text, trace_dir, workspace_root, role_prompt, role_prompt_files, image_paths, chat_arg, extra_tools = _parse_cli_args(argv or sys.argv[1:])
         agent_cls = resolve_agent_class_for_role_prompt_files(role_prompt_files)
+        forbidden_tools = set(getattr(agent_cls, "forbidden_tool_names", set()))
         agent = agent_cls(
+            function_list=(
+                default_tool_names(include_ask_user="AskUser" not in forbidden_tools, extra_tools=extra_tools)
+                if extra_tools
+                else None
+            ),
             llm=default_llm_config(),
             trace_dir=trace_dir,
             role_prompt=role_prompt or None,
