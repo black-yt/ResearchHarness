@@ -141,7 +141,8 @@ python3 run_agent.py "Summarize this project." \
   --trace-dir ./traces
 ```
 
-`./traces` 可以替换为任何其他 trace 目录。
+`./traces` 可以替换为任何其他 trace 目录。建议让 trace 目录与 agent
+workspace 分离，不要把 `--trace-dir` 指向和 `--workspace-root` 相同的文件夹。
 
 如果不传 `--trace-dir`，CLI 运行不会写 trace 文件。
 
@@ -533,6 +534,10 @@ ResearchHarness 当前包含：
 
 CLI 运行只有在传入 `--trace-dir` 时才会写 trace。如果不传
 `--trace-dir`，CLI 运行不会写 trace 文件。
+
+CLI 和 frontend 运行中，trace 文件建议放在 agent 可见 workspace 之外。
+这样可以避免 agent 看到自己的 trace/session state，也能保持 benchmark-style
+workspace 干净。
 
 API 运行时，记录在：
 

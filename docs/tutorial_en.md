@@ -147,7 +147,9 @@ python3 run_agent.py "Summarize this project." \
   --trace-dir ./traces
 ```
 
-You can replace `./traces` with any other trace directory.
+You can replace `./traces` with any other trace directory. Keep it separate from
+the agent workspace; do not point `--trace-dir` at the same folder used by
+`--workspace-root`.
 
 Without `--trace-dir`, CLI runs do not write a trace file.
 
@@ -561,6 +563,10 @@ ResearchHarness currently includes:
 
 CLI runs write traces only when `--trace-dir` is provided. Without
 `--trace-dir`, CLI runs do not write a trace file.
+
+For CLI and frontend runs, keep trace files outside the agent-visible workspace.
+This prevents the agent from inspecting its own trace/session state and keeps
+benchmark-style workspaces clean.
 
 API runs write traces under:
 

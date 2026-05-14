@@ -359,7 +359,9 @@ Details:
 - `.env` fills missing environment variables only; it is a convenient local
   default file, not a higher-priority override layer.
 - `--trace-dir` has no environment-variable equivalent. Trace/session state is
-  written only when this argument is supplied in direct CLI runs.
+  written only when this argument is supplied in direct CLI runs. Prefer a trace
+  directory outside the agent-visible workspace; do not point `--trace-dir` at
+  `--workspace-root`.
 - `--api-runs-dir` is required for the OpenAI-compatible API server and is not
   inferred from `WORKSPACE_ROOT`.
 - In frontend mode, the workspace is selected in the browser, but other
@@ -410,7 +412,8 @@ python3 -m agent_base.react_agent "your prompt" --trace-dir ./traces
 
 When a trace directory is provided, ResearchHarness creates a file named like
 `trace_YYYYMMDD_HHMMSS_<runid>.jsonl` inside that directory.
-You can replace `./traces` with any other trace directory.
+You can replace `./traces` with any other trace directory. Keep it separate from
+the agent workspace so the agent cannot inspect its own trace or session state.
 Without `--trace-dir`, CLI runs do not write a trace file or `_session_state.json`.
 
 Use an explicit workspace:
@@ -491,6 +494,9 @@ python3 run_frontend.py \
   --trace-dir ./traces \
   --role-prompt-file benchmarks/QA/role_prompt.md
 ```
+
+As with CLI runs, keep the frontend trace directory separate from the selected
+workspace folder.
 
 The frontend keeps only the current conversation in the page. It runs the agent
 directly in the selected existing workspace folder, streams assistant rounds and
@@ -842,6 +848,9 @@ The trace includes:
 When tracing is enabled, `_session_state.json` is written next to the trace file.
 Without `--trace-dir`, CLI runs do not write either file. API deployment mode
 always writes trace records under each run's `agent_trace/` directory.
+For CLI and frontend runs, do not use the agent-visible workspace itself as the
+trace directory. A separate `./traces` directory avoids exposing runtime state
+to the running agent and keeps benchmark-style workspaces clean.
 
 Why flat traces?
 
