@@ -306,7 +306,9 @@ flowchart LR
 
 ## 5. API Workspace Layout
 
-Each API request creates one run directory:
+By default, when a request does not provide a valid `workspace-root`, each API
+request creates one run directory with an agent-visible workspace and an
+independent trace directory:
 
 ```text
 ./api_runs/
@@ -329,12 +331,24 @@ Meaning:
 | `agent_workspace/inputs/images/` | User-provided images saved from API requests. |
 | `agent_trace/` | API trace, agent trace, and runtime records. |
 
+If a request provides `workspace-root` with an absolute path to an existing
+directory, the agent uses that directory instead of the default
+`agent_workspace/`. If the field is missing, relative, or not an existing
+directory, the request falls back to the default `agent_workspace/`. Use exactly
+`workspace-root`; synonymous spellings such as `workspace_root` are rejected to
+avoid silent routing mistakes.
+
+The per-request `agent_trace/` directory is always created under
+`--api-runs-dir`, even when a custom `workspace-root` is used. For custom
+workspaces, uploaded images are saved inside that workspace under
+`inputs/images/<run_id>/`.
+
 For multimodal requests, image inputs are handled in two ways at the same time:
 the image content is passed to the backend model as initial multimodal input
-when the selected model supports it, and each image is saved under
-`agent_workspace/inputs/images/`. Each saved relative path is also included in
-the agent-visible text, so later rounds can call `ReadImage` on a stable local
-path without repeatedly resending image bytes.
+when the selected model supports it, and each image is saved inside the selected
+workspace. Each saved relative path is also included in the agent-visible text,
+so later rounds can call `ReadImage` on a stable local path without repeatedly
+resending image bytes.
 
 This separation keeps user-visible tool work separate from server-side trace files.
 In API deployment mode, traces are saved by default: every request writes
@@ -432,6 +446,7 @@ Supported request fields:
 | `max_tokens` | no | Maximum output tokens for the output wrapper. |
 | `max_completion_tokens` | no | Alias accepted for output-wrapper max tokens. |
 | `response_format` | no | Passed to the wrappers as an output-format hint. |
+| `workspace-root` | no | Absolute path to an existing workspace directory for this request. If missing or invalid, the default per-request `agent_workspace/` is used. |
 
 Supported message roles:
 

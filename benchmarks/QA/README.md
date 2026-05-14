@@ -19,19 +19,37 @@ python3 /abs/path/to/ResearchHarness/run_server.py \
   --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/QA/role_prompt.md
 ```
 
-Each request creates a fresh run directory:
+By default, each request creates a fresh run directory:
 
 ```text
 ./api_runs/
-`-- run_YYYYMMDD_HHMMSS_<random>/
-    |-- agent_workspace/          # visible to the agent
-    |   `-- inputs/
-    |       `-- images/           # user-provided images, when present
-    `-- agent_trace/              # server-side trace and session state
-        |-- api_trace.jsonl
-        |-- trace_*.jsonl
-        `-- _session_state.json
+└── run_YYYYMMDD_HHMMSS_<random>/
+    ├── agent_workspace/          # visible to the agent
+    │   └── inputs/
+    │       └── images/           # user-provided images, when present
+    └── agent_trace/              # server-side trace and session state
+        ├── api_trace.jsonl
+        ├── trace_*.jsonl
+        └── _session_state.json
 ```
+
+Benchmark runners may pass `workspace-root` in the OpenAI request body when a
+case should run inside an already prepared workspace:
+
+```python
+response = client.chat.completions.create(
+    model="RH",
+    messages=[{"role": "user", "content": "Answer the question."}],
+    extra_body={"workspace-root": "/abs/path/to/existing/workspace"},
+)
+```
+
+If `workspace-root` is absent, relative, or not an existing directory, RH falls
+back to the default per-request `agent_workspace/`. The `agent_trace/` directory
+is always created under `--api-runs-dir/run_.../` for auditability. For custom
+workspaces, uploaded images are saved under `inputs/images/<run_id>/` inside
+that workspace. Use exactly `workspace-root`; synonymous request fields such as
+`workspace_root` are rejected.
 
 The input and output LLM wrappers are enabled by default:
 
@@ -89,10 +107,12 @@ override. Direct model names such as `gpt-5.5` are rejected so benchmark runners
 do not accidentally confuse the ResearchHarness endpoint label with the backend
 LLM selection.
 
-The API saves each submitted image under `agent_workspace/inputs/images/`,
-passes the image content to the first ResearchHarness model call when the
-backend model supports image parts, and includes each saved path in the
-agent-visible text.
+The API saves each submitted image inside the selected workspace, passes the
+image content to the first ResearchHarness model call when the backend model
+supports image parts, and includes each saved path in the agent-visible text.
+With the default workspace this is `agent_workspace/inputs/images/`; with a
+custom `workspace-root`, this is `inputs/images/<run_id>/` inside that
+workspace.
 
 The returned answer should be self-contained for a remote evaluator. Workspace
 files may support the run, but the response should not only say to consult

@@ -38,6 +38,13 @@ IMAGE_EXTENSIONS = {
 DEFAULT_MAX_IMAGE_BYTES = 25 * 1024 * 1024
 API_MODEL_ALIAS = "RH"
 API_MODEL_PREFIX = "RH--"
+REQUEST_WORKSPACE_ROOT_FIELD = "workspace-root"
+REQUEST_WORKSPACE_ROOT_ALIAS_FIELDS = (
+    "workspace_root",
+    "workspace-dir",
+    "workspace_dir",
+    "workspace",
+)
 
 INPUT_WRAPPER_SYSTEM_PROMPT = """You are the ResearchHarness input wrapper.
 
@@ -160,11 +167,13 @@ def resolve_api_model_selection(model_label: str) -> tuple[str, str]:
     )
 
 
-def prepare_openai_input(messages: list[Any], workspace_root: Path) -> PreparedInput:
+def prepare_openai_input(messages: list[Any], workspace_root: Path, *, image_subdir: str = "") -> PreparedInput:
     wrapper_messages: list[dict[str, str]] = []
     initial_content_parts: list[dict[str, Any]] = []
     image_paths: list[str] = []
     image_dir = workspace_root / "inputs" / "images"
+    if image_subdir:
+        image_dir = image_dir / image_subdir
     image_index = 0
 
     for message in messages:
@@ -370,6 +379,43 @@ def final_max_tokens(payload: dict[str, Any]) -> Optional[int]:
     return value
 
 
+def resolve_request_workspace_root(payload: dict[str, Any], default_workspace_root: Path) -> tuple[Path, dict[str, Any]]:
+    for alias in REQUEST_WORKSPACE_ROOT_ALIAS_FIELDS:
+        if alias in payload:
+            raise OpenAICompatError(
+                400,
+                f"Use '{REQUEST_WORKSPACE_ROOT_FIELD}' instead of '{alias}' for request-level workspace selection.",
+            )
+
+    raw_value = payload.get(REQUEST_WORKSPACE_ROOT_FIELD)
+    default_workspace_root = default_workspace_root.expanduser().resolve()
+    meta = {
+        "field": REQUEST_WORKSPACE_ROOT_FIELD,
+        "requested_workspace_root": "" if raw_value is None else str(raw_value),
+        "default_workspace_root": str(default_workspace_root),
+        "workspace_root": str(default_workspace_root),
+        "source": "default",
+        "reason": "not_provided",
+    }
+    if raw_value is None or str(raw_value).strip() == "":
+        return default_workspace_root, meta
+
+    requested = Path(str(raw_value).strip()).expanduser()
+    if not requested.is_absolute():
+        meta["reason"] = "request_workspace_root_is_not_absolute"
+        return default_workspace_root, meta
+
+    resolved = requested.resolve()
+    if not resolved.is_dir():
+        meta["reason"] = "request_workspace_root_is_not_existing_directory"
+        return default_workspace_root, meta
+
+    meta["workspace_root"] = str(resolved)
+    meta["source"] = "request"
+    meta["reason"] = "request_workspace_root_exists"
+    return resolved, meta
+
+
 def append_api_event(trace_dir: Path, event: str, payload: dict[str, Any]) -> None:
     append_jsonl(
         trace_dir / "api_trace.jsonl",
@@ -388,11 +434,22 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     request_id = "chatcmpl_" + uuid4().hex
     run_id = "run_" + datetime.datetime.now().astimezone().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8]
     run_root = config.api_runs_dir / run_id
-    agent_workspace = run_root / "agent_workspace"
+    default_agent_workspace = run_root / "agent_workspace"
     trace_dir = run_root / "agent_trace"
-    agent_workspace.mkdir(parents=True, exist_ok=False)
+    agent_workspace, workspace_meta = resolve_request_workspace_root(payload, default_agent_workspace)
+    if workspace_meta["source"] == "default":
+        agent_workspace.mkdir(parents=True, exist_ok=False)
     trace_dir.mkdir(parents=True, exist_ok=False)
-    prepared = prepare_openai_input(payload["messages"], agent_workspace)
+    append_api_event(
+        trace_dir,
+        "workspace_selection",
+        workspace_meta,
+    )
+    prepared = prepare_openai_input(
+        payload["messages"],
+        agent_workspace,
+        image_subdir=run_id if workspace_meta["source"] == "request" else "",
+    )
     llm_config = default_llm_config(model_name=backend_model)
     backend_model = str(llm_config.get("model", ""))
     append_api_event(

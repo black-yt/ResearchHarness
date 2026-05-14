@@ -136,7 +136,9 @@ def main() -> int:
         def __init__(self, function_list, llm, trace_dir, role_prompt=None):
             self.trace_dir = Path(trace_dir)
             fake_seen["trace_dir"] = str(self.trace_dir)
+            fake_seen.setdefault("trace_dirs", []).append(str(self.trace_dir))
             fake_seen["model"] = str(llm.get("model", ""))
+            fake_seen.setdefault("models", []).append(str(llm.get("model", "")))
 
         def call_compaction_api(self, messages, max_output_tokens=None):
             if messages and messages[0]["content"].startswith("You are the ResearchHarness input wrapper"):
@@ -161,7 +163,9 @@ def main() -> int:
 
         def _run_session(self, prompt, workspace_root=None, initial_content_parts=None):
             fake_seen["workspace_root"] = str(workspace_root)
+            fake_seen.setdefault("workspace_roots", []).append(str(workspace_root))
             fake_seen["initial_content_parts"] = str(bool(initial_content_parts))
+            fake_seen.setdefault("initial_content_parts_values", []).append(str(bool(initial_content_parts)))
             return {
                 "result_text": "Final answer: 12",
                 "termination": "result",
@@ -188,6 +192,24 @@ def main() -> int:
             payload,
             ServerConfig(api_runs_dir=api_runs_root, input_wrapper=True, output_wrapper=True),
         )
+        custom_workspace = TMP_DIR / "custom_api_workspace"
+        custom_workspace.mkdir(parents=True, exist_ok=True)
+        custom_payload = dict(payload)
+        custom_payload["workspace-root"] = str(custom_workspace)
+        custom_response = run_chat_completion(
+            custom_payload,
+            ServerConfig(api_runs_dir=api_runs_root / "custom", input_wrapper=False, output_wrapper=False),
+        )
+        missing_workspace = TMP_DIR / "missing_api_workspace"
+        missing_payload = {
+            "model": "RH--fake-vision-model",
+            "workspace-root": str(missing_workspace),
+            "messages": [{"role": "user", "content": "Use the default workspace because the requested one is missing."}],
+        }
+        missing_workspace_response = run_chat_completion(
+            missing_payload,
+            ServerConfig(api_runs_dir=api_runs_root / "missing_workspace", input_wrapper=False, output_wrapper=False),
+        )
     finally:
         openai_server.MultiTurnReactAgent = previous_agent_cls
         openai_server.default_llm_config = previous_default_llm_config
@@ -203,6 +225,20 @@ def main() -> int:
     except openai_server.OpenAICompatError as exc:
         invalid_model_rejected = exc.status_code == 400 and "RH--" in exc.message
 
+    workspace_alias_rejected = False
+    try:
+        alias_payload = {
+            "model": "RH",
+            "workspace_root": str(TMP_DIR),
+            "messages": [{"role": "user", "content": "Use a misspelled workspace field."}],
+        }
+        run_chat_completion(
+            alias_payload,
+            ServerConfig(api_runs_dir=api_runs_root / "workspace_alias", input_wrapper=False, output_wrapper=False),
+        )
+    except openai_server.OpenAICompatError as exc:
+        workspace_alias_rejected = exc.status_code == 400 and "workspace-root" in exc.message
+
     default_model_label, default_backend_model = openai_server.resolve_api_model_selection("")
 
     run_dirs = sorted(api_runs_root.glob("run_*"))
@@ -211,6 +247,27 @@ def main() -> int:
     api_agent_trace_dir = api_run_dir / "agent_trace" if api_run_dir else None
     api_saved_image = api_agent_workspace / "inputs" / "images" / "image_000.png" if api_agent_workspace else None
     api_second_saved_image = api_agent_workspace / "inputs" / "images" / "image_001.png" if api_agent_workspace else None
+    custom_run_dirs = sorted((api_runs_root / "custom").glob("run_*"))
+    custom_run_dir = custom_run_dirs[0] if custom_run_dirs else None
+    custom_agent_trace_dir = custom_run_dir / "agent_trace" if custom_run_dir else None
+    custom_default_workspace = custom_run_dir / "agent_workspace" if custom_run_dir else None
+    custom_saved_image = (
+        custom_workspace / "inputs" / "images" / custom_run_dir.name / "image_000.png"
+        if custom_run_dir
+        else None
+    )
+    missing_run_dirs = sorted((api_runs_root / "missing_workspace").glob("run_*"))
+    missing_run_dir = missing_run_dirs[0] if missing_run_dirs else None
+    missing_default_workspace = missing_run_dir / "agent_workspace" if missing_run_dir else None
+    missing_agent_trace_dir = missing_run_dir / "agent_trace" if missing_run_dir else None
+    workspace_roots = fake_seen.get("workspace_roots", [])
+    trace_dirs = fake_seen.get("trace_dirs", [])
+    default_api_events = load_trace_records(api_agent_trace_dir / "api_trace.jsonl") if api_agent_trace_dir else []
+    custom_api_events = load_trace_records(custom_agent_trace_dir / "api_trace.jsonl") if custom_agent_trace_dir else []
+    missing_api_events = load_trace_records(missing_agent_trace_dir / "api_trace.jsonl") if missing_agent_trace_dir else []
+    default_workspace_event = next((row for row in default_api_events if row.get("event") == "workspace_selection"), {})
+    custom_workspace_event = next((row for row in custom_api_events if row.get("event") == "workspace_selection"), {})
+    missing_workspace_event = next((row for row in missing_api_events if row.get("event") == "workspace_selection"), {})
 
     ok = (
         prepared.image_paths == ["inputs/images/image_000.png", "inputs/images/image_001.png"]
@@ -252,6 +309,7 @@ def main() -> int:
         and api_response["model"] == "RH--fake-vision-model"
         and fake_seen.get("model") == "fake-vision-model"
         and invalid_model_rejected
+        and workspace_alias_rejected
         and default_model_label == "RH"
         and bool(default_backend_model)
         and api_run_dir is not None
@@ -263,9 +321,34 @@ def main() -> int:
         and api_saved_image.exists()
         and api_second_saved_image is not None
         and api_second_saved_image.exists()
-        and Path(fake_seen.get("workspace_root", "")).name == "agent_workspace"
-        and Path(fake_seen.get("trace_dir", "")).name == "agent_trace"
+        and len(workspace_roots) >= 3
+        and Path(workspace_roots[0]).name == "agent_workspace"
+        and Path(workspace_roots[1]) == custom_workspace
+        and missing_default_workspace is not None
+        and Path(workspace_roots[2]) == missing_default_workspace
+        and not missing_workspace.exists()
+        and custom_response["choices"][0]["message"]["content"] == "Final answer: 12"
+        and missing_workspace_response["choices"][0]["message"]["content"] == "Final answer: 12"
+        and custom_agent_trace_dir is not None
+        and custom_agent_trace_dir.is_dir()
+        and custom_default_workspace is not None
+        and not custom_default_workspace.exists()
+        and custom_saved_image is not None
+        and custom_saved_image.exists()
+        and missing_agent_trace_dir is not None
+        and missing_agent_trace_dir.is_dir()
+        and missing_default_workspace is not None
+        and missing_default_workspace.is_dir()
+        and trace_dirs
+        and all(Path(trace_dir_text).name == "agent_trace" for trace_dir_text in trace_dirs)
         and (api_agent_trace_dir / "api_trace.jsonl").exists()
+        and (custom_agent_trace_dir / "api_trace.jsonl").exists()
+        and (missing_agent_trace_dir / "api_trace.jsonl").exists()
+        and default_workspace_event.get("payload", {}).get("source") == "default"
+        and custom_workspace_event.get("payload", {}).get("source") == "request"
+        and custom_workspace_event.get("payload", {}).get("workspace_root") == str(custom_workspace)
+        and missing_workspace_event.get("payload", {}).get("source") == "default"
+        and missing_workspace_event.get("payload", {}).get("reason") == "request_workspace_root_is_not_existing_directory"
     )
 
     result = OpenAIAPICheckResult(
@@ -289,7 +372,18 @@ def main() -> int:
                     "api_response": api_response,
                     "api_run_dir": str(api_run_dir) if api_run_dir else "",
                     "fake_seen": fake_seen,
+                    "custom_response": custom_response,
+                    "custom_workspace": str(custom_workspace),
+                    "custom_saved_image": str(custom_saved_image) if custom_saved_image else "",
+                    "missing_workspace_response": missing_workspace_response,
+                    "missing_default_workspace": str(missing_default_workspace) if missing_default_workspace else "",
+                    "workspace_events": [
+                        default_workspace_event,
+                        custom_workspace_event,
+                        missing_workspace_event,
+                    ],
                     "invalid_model_rejected": invalid_model_rejected,
+                    "workspace_alias_rejected": workspace_alias_rejected,
                     "default_model_selection": [default_model_label, default_backend_model],
                 },
                 ensure_ascii=False,

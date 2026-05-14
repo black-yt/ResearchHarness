@@ -89,6 +89,8 @@ If you are new to the project, the recommended reading order is:
   `WebFetch` no longer performs a hidden LLM summarization pass. It now uses a URL-only interface plus optional `start_line`, `end_line`, and `max_chars` controls. It returns cleaned, range-bounded webpage text with line and truncation metadata, so the main agent can inspect the evidence directly and request narrower ranges when needed.
 - **2026-05-14: Per-request and per-run model routing**
   The OpenAI-compatible API now accepts `model="RH"` for the default backend model and `model="RH--<llm-model-name>"` for a request-local override. The selected backend model is used consistently by the input wrapper, agent loop, compaction, and output wrapper without mutating global environment variables. The local frontend and hosted Space also expose a per-run model dropdown.
+- **2026-05-14: API request-level workspace roots**
+  OpenAI-compatible API requests can now pass `extra_body={"workspace-root": "/abs/path/to/existing/workspace"}` to run inside a prepared workspace. The server still creates an independent per-request `agent_trace/` under `--api-runs-dir`, and invalid or missing workspace roots fall back to the default isolated `agent_workspace/`.
 - **2026-05-13: Frontend math rendering**
   The local browser frontend and hosted Space now render common LaTeX math delimiters in final assistant Markdown answers, including `$$...$$`, `\(...\)`, and `\[...\]`, while leaving tool outputs and runtime logs unchanged.
 - **2026-05-13: Local browser frontend and conversational CLI**
@@ -524,10 +526,11 @@ client wants multi-turn API behavior, it should send the desired prior context
 in the request messages or manage that state outside ResearchHarness.
 
 Start the server in one terminal. `--api-runs-dir` is a parent directory used
-only for API runs; each request gets its own isolated subdirectory under it, so
-separate users, scripts, and benchmark cases do not share files.
+for per-request run records. If a request does not specify `workspace-root`,
+the agent also uses the default per-request `agent_workspace/` under this run
+directory.
 
-Each request creates:
+Without a valid request-level `workspace-root`, each request creates:
 
 ```text
 ./api_runs/
@@ -612,6 +615,32 @@ API request; it does not mutate environment variables and does not affect other
 concurrent requests. The agent run, input wrapper, output wrapper, and
 compaction all use the same selected backend model.
 
+### API Workspace Root
+
+By default, each API request uses its own isolated `agent_workspace/` under
+`--api-runs-dir`. A request may instead provide a `workspace-root` field with an
+absolute path to an existing directory:
+
+```python
+response = client.chat.completions.create(
+    model="RH",
+    messages=[{"role": "user", "content": "Inspect this workspace and summarize it."}],
+    extra_body={"workspace-root": "/abs/path/to/my/workspace"},
+)
+```
+
+If `workspace-root` is provided and points to an existing directory, the agent
+runs directly in that directory. If it is missing, relative, or not an existing
+directory, ResearchHarness falls back to the default per-request
+`agent_workspace/`. The public request field is intentionally only
+`workspace-root`; synonymous spellings such as `workspace_root` are rejected so
+request routing cannot silently diverge.
+
+In both cases, the server still creates a fresh `run_.../agent_trace/` under
+`--api-runs-dir`, so API trace, agent trace, and `_session_state.json` remain
+isolated and easy to audit. For custom workspaces, uploaded API images are saved
+inside that workspace under `inputs/images/<run_id>/`.
+
 ### Text Request
 
 Use the normal OpenAI SDK from another terminal, application, or benchmark
@@ -677,10 +706,12 @@ print(response.choices[0].message.content)
 
 For multimodal API requests, each image content part is passed directly to the
 backend model when the selected model supports image parts. Each image is also
-saved under `agent_workspace/inputs/images/`, and each saved relative path is
-included in the agent-visible text next to the corresponding image content part.
-If an image is needed again after later turns, the agent can call `ReadImage` on
-the saved path instead of relying on repeated inline image bytes.
+saved inside the selected workspace. With the default API workspace this is
+`agent_workspace/inputs/images/`; with request-level `workspace-root`, this is
+`inputs/images/<run_id>/` inside that workspace. Each saved relative path is
+included in the agent-visible text next to the corresponding image content
+part. If an image is needed again after later turns, the agent can call
+`ReadImage` on the saved path instead of relying on repeated inline image bytes.
 
 ### API Execution Flow
 
