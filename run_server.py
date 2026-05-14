@@ -29,14 +29,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--input-wrapper",
         action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable or disable the input LLM wrapper. Enabled by default.",
+        default=False,
+        help="Enable or disable the input LLM wrapper. Disabled by default.",
     )
     parser.add_argument(
         "--output-wrapper",
         action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable or disable the output LLM wrapper. Enabled by default.",
+        default=False,
+        help="Enable or disable the output LLM wrapper. Disabled by default.",
     )
     args = parser.parse_args(argv)
 

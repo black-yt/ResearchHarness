@@ -87,8 +87,10 @@ If you are new to the project, the recommended reading order is:
 
 - **2026-05-14: WebFetch is now deterministic fetch-only**
   `WebFetch` no longer performs a hidden LLM summarization pass. It now uses a URL-only interface plus optional `start_line`, `end_line`, and `max_chars` controls. It returns cleaned, range-bounded webpage text with line and truncation metadata, so the main agent can inspect the evidence directly and request narrower ranges when needed.
+- **2026-05-14: API wrappers are opt-in by default**
+  The default OpenAI-compatible deployment now runs as a transparent ResearchHarness agent service without input/output wrappers. For QA/VQA benchmark deployment, using `benchmarks/QA/role_prompt.md --input-wrapper --output-wrapper` is recommended when single-LLM-style, format-compliant answers are needed.
 - **2026-05-14: Per-request and per-run model routing**
-  The OpenAI-compatible API now accepts `model="RH"` for the default backend model and `model="RH--<llm-model-name>"` for a request-local override. The selected backend model is used consistently by the input wrapper, agent loop, compaction, and output wrapper without mutating global environment variables. The local frontend and hosted Space also expose a per-run model dropdown.
+  The OpenAI-compatible API now accepts `model="RH"` for the default backend model and `model="RH--<llm-model-name>"` for a request-local override. The selected backend model is used consistently by enabled wrappers, the agent loop, and compaction without mutating global environment variables. The local frontend and hosted Space also expose a per-run model dropdown.
 - **2026-05-14: API request-level workspace roots**
   OpenAI-compatible API requests can now pass `extra_body={"workspace-root": "/abs/path/to/existing/workspace"}` to run inside a prepared workspace. The server still creates an independent per-request `agent_trace/` under `--api-runs-dir`, and invalid or missing workspace roots fall back to the default isolated `agent_workspace/`.
 - **2026-05-13: Frontend math rendering**
@@ -96,7 +98,7 @@ If you are new to the project, the recommended reading order is:
 - **2026-05-13: Local browser frontend and conversational CLI**
   ResearchHarness now includes a one-command local chat UI for interactive agent runs. It streams assistant/tool steps in real time, runs directly inside a selected local workspace, supports image attachments, handles `AskUser` replies through the same chat input box, and lets users continue after a final answer without losing prior context. Frontend runs can be interrupted with **Stop** and resumed from the preserved context; interactive CLI runs can use `Ctrl+C` to interrupt the current run and continue chatting. CLI step output now uses compact colored boxes for assistant/tool/runtime events. API deployment remains intentionally one request -> one answer.
 - **2026-05-12: OpenAI-compatible API server**
-  ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and uses input/output LLM wrappers to keep agent execution stable and final answers format-compliant.
+  ResearchHarness can now be deployed as a synchronous `/v1/chat/completions` service. Existing OpenAI SDK clients can send plain-text or multimodal requests, while the server creates an isolated workspace per request and can optionally use input/output LLM wrappers for strict benchmark-style answer formatting.
 - **2026-04-30: Interactive `AskUser` tool**
   ResearchHarness now includes an `AskUser` native tool for essential human clarification in interactive runs, while the ResearchClawBench adapter explicitly excludes it to keep benchmark runs non-interactive.
 - **2026-04-30: Workspace roots are created automatically**
@@ -544,8 +546,8 @@ Without a valid request-level `workspace-root`, each request creates:
         └── _session_state.json
 ```
 
-In deployment mode, traces are saved by default. Each request writes API wrapper
-events, agent trace, and session state into that run's `agent_trace/` directory.
+In deployment mode, traces are saved by default. Each request writes API events,
+agent trace, and session state into that run's `agent_trace/` directory.
 
 Default deployment for normal application or personal-assistant use:
 
@@ -556,51 +558,30 @@ python3 run_server.py \
   --port 8686
 ```
 
-QA/VQA benchmark deployment with the optional benchmark role overlay:
+Recommended QA/VQA benchmark deployment with the benchmark role overlay and wrappers:
 
 ```bash
 python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686 \
-  --role-prompt-file benchmarks/QA/role_prompt.md
-```
-
-### Wrapper Modes
-
-The API server has two optional LLM wrapper passes. Both are enabled by default.
-
-- `--input-wrapper` / `--no-input-wrapper`: enable or disable the LLM pass that rewrites user input into a stable agent task.
-- `--output-wrapper` / `--no-output-wrapper`: enable or disable the LLM pass that formats the agent result to the requested answer contract.
-
-Strict-format benchmark mode usually keeps both wrappers on:
-
-```bash
-python3 run_server.py \
-  --api-runs-dir ./api_runs \
   --role-prompt-file benchmarks/QA/role_prompt.md \
   --input-wrapper \
   --output-wrapper
 ```
 
-Direct agent mode disables both wrappers and returns the agent's own final text:
+### Wrapper Modes
 
-```bash
-python3 run_server.py \
-  --api-runs-dir ./api_runs \
-  --no-input-wrapper \
-  --no-output-wrapper
-```
+The API server has two optional LLM wrapper passes. Both are disabled by
+default in normal deployment mode.
 
-If the input is simple but the answer still needs strict final formatting, keep
-only the output wrapper:
+- `--input-wrapper` / `--no-input-wrapper`: enable or disable the LLM pass that rewrites user input into a stable agent task.
+- `--output-wrapper` / `--no-output-wrapper`: enable or disable the LLM pass that formats the agent result to the requested answer contract.
 
-```bash
-python3 run_server.py \
-  --api-runs-dir ./api_runs \
-  --no-input-wrapper \
-  --output-wrapper
-```
+The two commands above are the recommended modes: default transparent agent
+deployment, and QA/VQA benchmark deployment. Advanced users can still combine
+`--role-prompt-file`, `--input-wrapper`, and `--output-wrapper` manually when a
+custom application needs only part of the benchmark behavior.
 
 ### API Model Selection
 
@@ -612,8 +593,8 @@ two-hyphen prefix form `RH--<llm-model-name>`, for example `RH--gpt-5.5` or
 
 Direct model names such as `gpt-5.5` are rejected. The override is local to that
 API request; it does not mutate environment variables and does not affect other
-concurrent requests. The agent run, input wrapper, output wrapper, and
-compaction all use the same selected backend model.
+concurrent requests. The agent run, enabled wrappers, and compaction all use the
+same selected backend model.
 
 ### API Workspace Root
 
@@ -721,24 +702,29 @@ part. If an image is needed again after later turns, the agent can call
 
 ### API Execution Flow
 
-API execution uses three stages:
+Default API execution is a transparent agent run:
+
+- ResearchHarness agent: solves the task with tools and an isolated workspace.
+
+QA/VQA benchmark mode adds wrapper stages around the agent:
 
 - Input wrapper: separates the task from strict output-format instructions.
-- ResearchHarness agent: solves the task with tools and an isolated workspace.
 - Output wrapper: formats the agent result to match the user's requested answer contract.
 
 ```mermaid
 flowchart LR
-    U[User Input] --> IW[Input Wrapper LLM]
-    IW --> A[ResearchHarness Agent]
-    A --> OW[Output Wrapper LLM]
-    OW --> O[Output]
+    U[User Input] --> A[ResearchHarness Agent]
+    A --> O[Output]
+    U -. QA mode .-> IW[Input Wrapper LLM]
+    IW -.-> A
+    A -. QA mode .-> OW[Output Wrapper LLM]
+    OW -.-> O
 ```
 
 This keeps the public interface simple for callers while letting ResearchHarness
-handle real tool work internally. It is useful both for strict QA/VQA benchmark
-formats and for ordinary users who want a local agent service that can write
-files, inspect images, run tools, and return one clean final answer.
+handle real tool work internally. Default deployment is transparent and
+agent-first. QA/VQA mode is useful when a benchmark needs single-LLM-style,
+format-compliant final answers.
 
 ---
 

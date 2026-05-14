@@ -240,6 +240,7 @@ def main() -> int:
         workspace_alias_rejected = exc.status_code == 400 and "workspace-root" in exc.message
 
     default_model_label, default_backend_model = openai_server.resolve_api_model_selection("")
+    default_server_config = ServerConfig(api_runs_dir=api_runs_root / "defaults")
 
     run_dirs = sorted(api_runs_root.glob("run_*"))
     api_run_dir = run_dirs[0] if run_dirs else None
@@ -312,6 +313,8 @@ def main() -> int:
         and workspace_alias_rejected
         and default_model_label == "RH"
         and bool(default_backend_model)
+        and default_server_config.input_wrapper is False
+        and default_server_config.output_wrapper is False
         and api_run_dir is not None
         and api_agent_workspace is not None
         and api_agent_workspace.is_dir()
@@ -385,6 +388,10 @@ def main() -> int:
                     "invalid_model_rejected": invalid_model_rejected,
                     "workspace_alias_rejected": workspace_alias_rejected,
                     "default_model_selection": [default_model_label, default_backend_model],
+                    "default_wrapper_config": [
+                        default_server_config.input_wrapper,
+                        default_server_config.output_wrapper,
+                    ],
                 },
                 ensure_ascii=False,
                 indent=2,

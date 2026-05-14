@@ -100,8 +100,8 @@ class ServerConfig:
     role_prompt: str = ""
     host: str = "127.0.0.1"
     port: int = 8686
-    input_wrapper: bool = True
-    output_wrapper: bool = True
+    input_wrapper: bool = False
+    output_wrapper: bool = False
 
 
 @dataclass
@@ -592,8 +592,8 @@ def serve(
     host: str = "127.0.0.1",
     port: int = 8686,
     role_prompt_files: Optional[list[str]] = None,
-    input_wrapper: bool = True,
-    output_wrapper: bool = True,
+    input_wrapper: bool = False,
+    output_wrapper: bool = False,
 ) -> None:
     root = normalize_workspace_root(api_runs_dir)
     role_prompt = read_role_prompt_files(role_prompt_files or [])

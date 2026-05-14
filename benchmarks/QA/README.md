@@ -11,12 +11,15 @@ python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs
 ```
 
-For QA/VQA benchmark runs, optionally add this benchmark role overlay:
+For QA/VQA benchmark runs, the benchmark role overlay and both wrappers are
+recommended:
 
 ```bash
 python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs \
-  --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/QA/role_prompt.md
+  --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/QA/role_prompt.md \
+  --input-wrapper \
+  --output-wrapper
 ```
 
 By default, each request creates a fresh run directory:
@@ -57,20 +60,16 @@ workspaces, uploaded images are saved under `inputs/images/<run_id>/` inside
 that workspace. Use exactly `workspace-root`; synonymous request fields such as
 `workspace_root` are rejected.
 
-The input and output LLM wrappers are enabled by default:
+The input and output LLM wrappers are disabled by default in normal deployment
+mode:
 
 - `--input-wrapper` / `--no-input-wrapper` controls the input normalization pass.
 - `--output-wrapper` / `--no-output-wrapper` controls the final answer formatting pass.
 
-Strict-format benchmarks should usually keep both wrappers enabled. To return
-the agent's direct final text instead, run:
-
-```bash
-python3 /abs/path/to/ResearchHarness/run_server.py \
-  --api-runs-dir ./api_runs \
-  --no-input-wrapper \
-  --no-output-wrapper
-```
+Strict-format benchmarks are recommended to enable both wrappers, as shown
+above. To return the agent's direct final text, use the default deployment
+command without wrapper flags. Advanced deployments can manually combine role
+prompts and wrapper flags as needed.
 
 External benchmark runners can then use the regular OpenAI SDK with:
 
@@ -128,7 +127,8 @@ files may support the run, but the response should not only say to consult
 
 - The endpoint is synchronous and returns one final text answer.
 - Each request gets a separate workspace subdirectory.
-- The API uses an input wrapper, the ResearchHarness agent, and an output
-  wrapper so strict benchmark output formats do not destabilize the agent loop.
+- QA benchmark mode is recommended to use an input wrapper, the ResearchHarness
+  agent, and an output wrapper so strict benchmark output formats do not
+  destabilize the agent loop.
 - Streaming, async run status, artifact download, and remote image fetching are
   intentionally out of scope for this minimal QA contract.

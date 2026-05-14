@@ -220,14 +220,16 @@ python3 run_server.py \
   --port 8686
 ```
 
-QA/VQA benchmark deployment with a benchmark role overlay:
+Recommended QA/VQA benchmark deployment with a benchmark role overlay and wrappers:
 
 ```bash
 python3 run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686 \
-  --role-prompt-file benchmarks/QA/role_prompt.md
+  --role-prompt-file benchmarks/QA/role_prompt.md \
+  --input-wrapper \
+  --output-wrapper
 ```
 
 ### API Server Parameters
@@ -238,45 +240,40 @@ python3 run_server.py \
 | `--host HOST` | no | `127.0.0.1` | Host to bind. |
 | `--port PORT` | no | `8686` | Port to bind. |
 | `--role-prompt-file PATH` | no, repeatable | none | Append role prompt text to the base ResearchHarness prompt. |
-| `--input-wrapper` / `--no-input-wrapper` | no | enabled | Enable or disable the input LLM wrapper. |
-| `--output-wrapper` / `--no-output-wrapper` | no | enabled | Enable or disable the output LLM wrapper. |
+| `--input-wrapper` / `--no-input-wrapper` | no | disabled | Enable or disable the input LLM wrapper. |
+| `--output-wrapper` / `--no-output-wrapper` | no | disabled | Enable or disable the output LLM wrapper. |
 
 ### Wrapper Modes
 
-Both wrappers are enabled by default.
+Both wrappers are disabled by default. The recommended modes are default
+transparent agent deployment and QA/VQA benchmark deployment.
 
-Strict-format benchmark mode:
+QA/VQA benchmark mode:
 
 ```bash
 python3 run_server.py \
   --api-runs-dir ./api_runs \
+  --host 127.0.0.1 \
+  --port 8686 \
   --role-prompt-file benchmarks/QA/role_prompt.md \
   --input-wrapper \
   --output-wrapper
 ```
 
-Direct agent mode:
+Default transparent agent mode:
 
 ```bash
 python3 run_server.py \
   --api-runs-dir ./api_runs \
-  --no-input-wrapper \
-  --no-output-wrapper
-```
-
-Simple input plus strict final formatting:
-
-```bash
-python3 run_server.py \
-  --api-runs-dir ./api_runs \
-  --no-input-wrapper \
-  --output-wrapper
+  --host 127.0.0.1 \
+  --port 8686
 ```
 
 The input wrapper rewrites the original user request into a stable task for the
 agent. The output wrapper formats the agent result to match the user's requested
 answer contract. Wrappers must not invent new facts; they only normalize input
-and format output.
+and format output. Advanced deployments can still combine `--role-prompt-file`,
+`--input-wrapper`, and `--output-wrapper` manually.
 
 ### API Model Selection
 
@@ -288,8 +285,8 @@ two-hyphen prefix form `RH--<llm-model-name>`, for example `RH--gpt-5.5` or
 
 Direct model names such as `gpt-5.5` are rejected. The override is local to that
 API request; it does not mutate environment variables and does not affect other
-concurrent requests. The agent run, input wrapper, output wrapper, and
-compaction all use the same selected backend model.
+concurrent requests. The agent run, enabled wrappers, and compaction all use the
+same selected backend model.
 
 The API server is intentionally one request -> one answer. It does not keep a
 server-side conversation between HTTP requests. If an application needs API
@@ -298,10 +295,12 @@ context in later requests.
 
 ```mermaid
 flowchart LR
-    U[User Input] --> IW[Input Wrapper LLM]
-    IW --> A[ResearchHarness Agent]
-    A --> OW[Output Wrapper LLM]
-    OW --> O[Output]
+    U[User Input] --> A[ResearchHarness Agent]
+    A --> O[Output]
+    U -. QA mode .-> IW[Input Wrapper LLM]
+    IW -.-> A
+    A -. QA mode .-> OW[Output Wrapper LLM]
+    OW -.-> O
 ```
 
 ## 5. API Workspace Layout
@@ -430,8 +429,8 @@ Model routing follows a compact ResearchHarness label convention. Use `RH` or
 omit `model` to run the default backend `MODEL_NAME`. Use
 `RH--<llm-model-name>` with exactly two hyphens for a per-request override, for
 example `RH--gpt-5.5` or `RH--claude-opus-4-7`. The selected backend model is
-used consistently by the input wrapper, agent loop, compaction, and output
-wrapper for that request only.
+used consistently by enabled wrappers, the agent loop, and compaction for that
+request only.
 
 ### `POST /v1/chat/completions`
 
@@ -508,8 +507,8 @@ Returns:
 {
   "status": "ok",
   "api_runs_dir": "./api_runs",
-  "input_wrapper": true,
-  "output_wrapper": true
+  "input_wrapper": false,
+  "output_wrapper": false
 }
 ```
 
@@ -548,7 +547,7 @@ Important files:
 
 | File | Meaning |
 | --- | --- |
-| `api_trace.jsonl` | Input wrapper, agent result, and output wrapper records. |
+| `api_trace.jsonl` | API events, agent result records, and enabled wrapper records. |
 | `trace_*.jsonl` | Flat agent runtime trace. |
 | `_session_state.json` | Current session state, written next to `trace_*.jsonl` when tracing is enabled. |
 
