@@ -232,6 +232,7 @@ python3 run_server.py \
 | `--role-prompt-file PATH` | 否，可重复 | 无 | 追加 role prompt 到 base ResearchHarness prompt。 |
 | `--input-wrapper` / `--no-input-wrapper` | 否 | 关闭 | 开启或关闭输入 LLM wrapper。 |
 | `--output-wrapper` / `--no-output-wrapper` | 否 | 关闭 | 开启或关闭输出 LLM wrapper。 |
+| `--max-concurrent-runs N` | 否 | `32` | 当前 server 进程最多同时执行多少个 agent run。资源和后端 API quota 足够时可以调高。 |
 
 ### Wrapper 模式
 
@@ -259,6 +260,24 @@ python3 run_server.py \
 ```
 
 input wrapper 的作用是把原始用户请求整理为适合 agent 稳定执行的任务。output wrapper 的作用是把 agent 的最终结果整理为用户要求的答案格式。wrapper 不应该引入新事实，只做输入规范化和输出格式化。高级部署仍然可以手动组合 `--role-prompt-file`、`--input-wrapper` 和 `--output-wrapper`。
+
+### API 并发
+
+对调用方来说，endpoint 仍然是同步的一问一答接口。但每个长时间运行的 agent run
+会进入 server 侧线程池执行，不再阻塞 FastAPI event loop，也不会因为一个慢请求而把
+其他请求全部串行化。
+
+`--max-concurrent-runs` 控制当前 server 进程最多同时执行多少个 agent run。超过该
+限制的请求会异步等待空闲 run slot。大规模 benchmark 批量请求时，可以根据本地 CPU、
+内存、磁盘、网络和后端 API quota 调高：
+
+```bash
+python3 run_server.py \
+  --api-runs-dir ./api_runs \
+  --host 127.0.0.1 \
+  --port 8686 \
+  --max-concurrent-runs 128
+```
 
 ### API 模型选择
 
@@ -482,7 +501,8 @@ response.choices[0].message.content
   "status": "ok",
   "api_runs_dir": "./api_runs",
   "input_wrapper": false,
-  "output_wrapper": false
+  "output_wrapper": false,
+  "max_concurrent_runs": 32
 }
 ```
 

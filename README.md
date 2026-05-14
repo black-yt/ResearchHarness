@@ -87,6 +87,8 @@ If you are new to the project, the recommended reading order is:
 
 - **2026-05-14: WebFetch is now deterministic fetch-only**
   `WebFetch` no longer performs a hidden LLM summarization pass. It now uses a URL-only interface plus optional `start_line`, `end_line`, and `max_chars` controls. It returns cleaned, range-bounded webpage text with line and truncation metadata, so the main agent can inspect the evidence directly and request narrower ranges when needed.
+- **2026-05-14: API server no longer serializes long agent runs**
+  `/v1/chat/completions` now dispatches synchronous agent runs through a configurable thread pool instead of blocking the FastAPI event loop. Use `--max-concurrent-runs` to raise throughput when local resources and backend API quota allow it.
 - **2026-05-14: API wrappers are opt-in by default**
   The default OpenAI-compatible deployment now runs as a transparent ResearchHarness agent service without input/output wrappers. For QA/VQA benchmark deployment, using `benchmarks/QA/role_prompt.md --input-wrapper --output-wrapper` is recommended when single-LLM-style, format-compliant answers are needed.
 - **2026-05-14: Per-request and per-run model routing**
@@ -582,6 +584,27 @@ The two commands above are the recommended modes: default transparent agent
 deployment, and QA/VQA benchmark deployment. Advanced users can still combine
 `--role-prompt-file`, `--input-wrapper`, and `--output-wrapper` manually when a
 custom application needs only part of the benchmark behavior.
+
+### API Concurrency
+
+The API endpoint remains synchronous from the client's perspective, but long
+agent runs are executed in a server-side thread pool so they do not block the
+FastAPI event loop. `--max-concurrent-runs` controls how many agent runs this
+server process may execute at the same time. The default is `32`.
+
+For large benchmark batches, raise the value according to local CPU, memory,
+disk, network, and backend API quota:
+
+```bash
+python3 run_server.py \
+  --api-runs-dir ./api_runs \
+  --host 127.0.0.1 \
+  --port 8686 \
+  --max-concurrent-runs 128
+```
+
+Requests above this limit wait asynchronously for an available run slot instead
+of blocking unrelated health checks or connection handling.
 
 ### API Model Selection
 

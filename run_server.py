@@ -6,7 +6,14 @@ import argparse
 import sys
 
 from agent_base.utils import PROJECT_ROOT, MissingRequiredEnvError, load_dotenv, require_required_env
-from api.openai_server import serve
+from api.openai_server import DEFAULT_MAX_CONCURRENT_RUNS, positive_int, serve
+
+
+def positive_arg(value: str) -> int:
+    try:
+        return positive_int(value, "--max-concurrent-runs")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,6 +45,12 @@ def main(argv: list[str] | None = None) -> int:
         default=False,
         help="Enable or disable the output LLM wrapper. Disabled by default.",
     )
+    parser.add_argument(
+        "--max-concurrent-runs",
+        type=positive_arg,
+        default=DEFAULT_MAX_CONCURRENT_RUNS,
+        help=f"Maximum concurrent agent runs handled by this server process. Defaults to {DEFAULT_MAX_CONCURRENT_RUNS}.",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv(PROJECT_ROOT / ".env")
@@ -50,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             role_prompt_files=list(args.role_prompt_files),
             input_wrapper=args.input_wrapper,
             output_wrapper=args.output_wrapper,
+            max_concurrent_runs=args.max_concurrent_runs,
         )
     except (MissingRequiredEnvError, ValueError) as exc:
         print(str(exc), file=sys.stderr)

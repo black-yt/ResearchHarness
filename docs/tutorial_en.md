@@ -242,6 +242,7 @@ python3 run_server.py \
 | `--role-prompt-file PATH` | no, repeatable | none | Append role prompt text to the base ResearchHarness prompt. |
 | `--input-wrapper` / `--no-input-wrapper` | no | disabled | Enable or disable the input LLM wrapper. |
 | `--output-wrapper` / `--no-output-wrapper` | no | disabled | Enable or disable the output LLM wrapper. |
+| `--max-concurrent-runs N` | no | `32` | Maximum concurrent agent runs handled by this server process. Raise it when local resources and backend API quota allow higher throughput. |
 
 ### Wrapper Modes
 
@@ -274,6 +275,26 @@ agent. The output wrapper formats the agent result to match the user's requested
 answer contract. Wrappers must not invent new facts; they only normalize input
 and format output. Advanced deployments can still combine `--role-prompt-file`,
 `--input-wrapper`, and `--output-wrapper` manually.
+
+### API Concurrency
+
+The endpoint is synchronous for the caller, but each long agent run is executed
+in a server-side thread pool. This prevents one slow `/v1/chat/completions`
+request from blocking the FastAPI event loop and serializing all other
+requests.
+
+`--max-concurrent-runs` controls the number of simultaneous agent runs in this
+server process. Requests above the limit wait asynchronously for a free slot.
+For large benchmark batches, raise the value according to local CPU, memory,
+disk, network, and backend API quota:
+
+```bash
+python3 run_server.py \
+  --api-runs-dir ./api_runs \
+  --host 127.0.0.1 \
+  --port 8686 \
+  --max-concurrent-runs 128
+```
 
 ### API Model Selection
 
@@ -508,7 +529,8 @@ Returns:
   "status": "ok",
   "api_runs_dir": "./api_runs",
   "input_wrapper": false,
-  "output_wrapper": false
+  "output_wrapper": false,
+  "max_concurrent_runs": 32
 }
 ```
 

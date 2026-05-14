@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
+import asyncio
 import json
 import shutil
 import sys
+import threading
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -38,6 +41,7 @@ def main() -> int:
         build_input_wrapper_messages,
         build_output_wrapper_messages,
         build_passthrough_input_plan,
+        create_app,
         extract_json_object,
         make_chat_completion_response,
         prepare_openai_input,
@@ -241,6 +245,47 @@ def main() -> int:
 
     default_model_label, default_backend_model = openai_server.resolve_api_model_selection("")
     default_server_config = ServerConfig(api_runs_dir=api_runs_root / "defaults")
+    high_concurrency_config = ServerConfig(api_runs_dir=api_runs_root / "concurrency", max_concurrent_runs=4)
+
+    concurrency_seen = {"active": 0, "max_active": 0, "calls": 0}
+    concurrency_lock = threading.Lock()
+
+    def fake_slow_run(payload, config):
+        with concurrency_lock:
+            concurrency_seen["active"] += 1
+            concurrency_seen["calls"] += 1
+            concurrency_seen["max_active"] = max(concurrency_seen["max_active"], concurrency_seen["active"])
+        time.sleep(0.12)
+        with concurrency_lock:
+            concurrency_seen["active"] -= 1
+        return make_chat_completion_response(
+            request_id="chatcmpl_concurrency_test",
+            model=str(payload.get("model") or "RH"),
+            content="ok",
+        )
+
+    previous_run_chat_completion = openai_server.run_chat_completion
+    openai_server.run_chat_completion = fake_slow_run
+    try:
+        concurrency_app = create_app(high_concurrency_config)
+        chat_route = next(route for route in concurrency_app.routes if getattr(route, "path", "") == "/v1/chat/completions")
+        health_route = next(route for route in concurrency_app.routes if getattr(route, "path", "") == "/v1/health")
+
+        async def run_concurrency_probe():
+            request_payloads = [
+                {"model": "RH", "messages": [{"role": "user", "content": f"concurrency probe {index}"}]}
+                for index in range(8)
+            ]
+            async with concurrency_app.router.lifespan_context(concurrency_app):
+                health_info = await health_route.endpoint()
+                start = time.perf_counter()
+                results = await asyncio.gather(*(chat_route.endpoint(payload) for payload in request_payloads))
+                elapsed = time.perf_counter() - start
+            return results, elapsed, health_info
+
+        concurrency_results, concurrency_elapsed, concurrency_health = asyncio.run(run_concurrency_probe())
+    finally:
+        openai_server.run_chat_completion = previous_run_chat_completion
 
     run_dirs = sorted(api_runs_root.glob("run_*"))
     api_run_dir = run_dirs[0] if run_dirs else None
@@ -315,6 +360,13 @@ def main() -> int:
         and bool(default_backend_model)
         and default_server_config.input_wrapper is False
         and default_server_config.output_wrapper is False
+        and default_server_config.max_concurrent_runs == openai_server.DEFAULT_MAX_CONCURRENT_RUNS
+        and high_concurrency_config.max_concurrent_runs == 4
+        and concurrency_seen["calls"] == 8
+        and concurrency_seen["max_active"] == 4
+        and concurrency_elapsed < 0.6
+        and concurrency_health.get("max_concurrent_runs") == 4
+        and all(result["choices"][0]["message"]["content"] == "ok" for result in concurrency_results)
         and api_run_dir is not None
         and api_agent_workspace is not None
         and api_agent_workspace.is_dir()
@@ -392,6 +444,10 @@ def main() -> int:
                         default_server_config.input_wrapper,
                         default_server_config.output_wrapper,
                     ],
+                    "default_max_concurrent_runs": default_server_config.max_concurrent_runs,
+                    "concurrency_seen": concurrency_seen,
+                    "concurrency_elapsed": concurrency_elapsed,
+                    "concurrency_health": concurrency_health,
                 },
                 ensure_ascii=False,
                 indent=2,

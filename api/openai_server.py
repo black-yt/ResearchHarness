@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import datetime
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -36,6 +38,7 @@ IMAGE_EXTENSIONS = {
     "image/gif": ".gif",
 }
 DEFAULT_MAX_IMAGE_BYTES = 25 * 1024 * 1024
+DEFAULT_MAX_CONCURRENT_RUNS = 32
 API_MODEL_ALIAS = "RH"
 API_MODEL_PREFIX = "RH--"
 REQUEST_WORKSPACE_ROOT_FIELD = "workspace-root"
@@ -102,6 +105,10 @@ class ServerConfig:
     port: int = 8686
     input_wrapper: bool = False
     output_wrapper: bool = False
+    max_concurrent_runs: int = DEFAULT_MAX_CONCURRENT_RUNS
+
+    def __post_init__(self) -> None:
+        self.max_concurrent_runs = positive_int(self.max_concurrent_runs, "max_concurrent_runs")
 
 
 @dataclass
@@ -116,6 +123,16 @@ def openai_error_response(exc: OpenAICompatError) -> JSONResponse:
         status_code=exc.status_code,
         content={"error": {"message": exc.message, "type": exc.error_type}},
     )
+
+
+def positive_int(value: Any, name: str) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a positive integer.") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be a positive integer.")
+    return parsed
 
 
 def make_chat_completion_response(*, request_id: str, model: str, content: str) -> dict[str, Any]:
@@ -558,8 +575,52 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     )
 
 
+def run_chat_completion_with_slot_release(
+    payload: dict[str, Any],
+    config: ServerConfig,
+    loop: asyncio.AbstractEventLoop,
+    semaphore: asyncio.Semaphore,
+) -> dict[str, Any]:
+    try:
+        return run_chat_completion(payload, config)
+    finally:
+        try:
+            loop.call_soon_threadsafe(semaphore.release)
+        except RuntimeError:
+            pass
+
+
+async def run_chat_completion_in_executor(payload: dict[str, Any], config: ServerConfig, app: FastAPI) -> dict[str, Any]:
+    semaphore: asyncio.Semaphore = app.state.run_semaphore
+    executor: ThreadPoolExecutor = app.state.run_executor
+    loop = asyncio.get_running_loop()
+    await semaphore.acquire()
+    try:
+        future = loop.run_in_executor(
+            executor,
+            run_chat_completion_with_slot_release,
+            payload,
+            config,
+            loop,
+            semaphore,
+        )
+    except Exception:
+        semaphore.release()
+        raise
+    return await future
+
+
 def create_app(config: ServerConfig) -> FastAPI:
     app = FastAPI(title="ResearchHarness OpenAI-Compatible API", version="1.0")
+    app.state.run_executor = ThreadPoolExecutor(
+        max_workers=config.max_concurrent_runs,
+        thread_name_prefix="rh-api-run",
+    )
+    app.state.run_semaphore = asyncio.Semaphore(config.max_concurrent_runs)
+
+    @app.on_event("shutdown")
+    async def shutdown_executor() -> None:
+        app.state.run_executor.shutdown(wait=False, cancel_futures=True)
 
     @app.exception_handler(OpenAICompatError)
     async def _handle_openai_compat_error(request: Request, exc: OpenAICompatError) -> JSONResponse:
@@ -572,12 +633,13 @@ def create_app(config: ServerConfig) -> FastAPI:
             "api_runs_dir": str(config.api_runs_dir),
             "input_wrapper": config.input_wrapper,
             "output_wrapper": config.output_wrapper,
+            "max_concurrent_runs": config.max_concurrent_runs,
         }
 
     @app.post("/v1/chat/completions")
     async def chat_completions(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         try:
-            return run_chat_completion(payload, config)
+            return await run_chat_completion_in_executor(payload, config, app)
         except OpenAICompatError:
             raise
         except Exception as exc:
@@ -594,6 +656,7 @@ def serve(
     role_prompt_files: Optional[list[str]] = None,
     input_wrapper: bool = False,
     output_wrapper: bool = False,
+    max_concurrent_runs: int = DEFAULT_MAX_CONCURRENT_RUNS,
 ) -> None:
     root = normalize_workspace_root(api_runs_dir)
     role_prompt = read_role_prompt_files(role_prompt_files or [])
@@ -604,6 +667,7 @@ def serve(
         port=port,
         input_wrapper=input_wrapper,
         output_wrapper=output_wrapper,
+        max_concurrent_runs=max_concurrent_runs,
     )
     app = create_app(config)
     uvicorn.run(app, host=host, port=port)

@@ -11,6 +11,9 @@ python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs
 ```
 
+For large benchmark batches, raise `--max-concurrent-runs` when local resources
+and backend API quota allow more simultaneous agent runs.
+
 For QA/VQA benchmark runs, the benchmark role overlay and both wrappers are
 recommended:
 
