@@ -442,12 +442,12 @@ button {
   max-height: 220px;
 }
 
-.event.collapsed .event-body-inner {
+.event.can-collapse.collapsed .event-body-inner {
   position: relative;
   overflow: hidden;
 }
 
-.event.collapsed .event-body-inner::after {
+.event.can-collapse.collapsed .event-body-inner::after {
   content: "";
   position: absolute;
   right: 0;

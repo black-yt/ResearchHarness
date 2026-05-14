@@ -201,6 +201,9 @@ def test_frontend_static_interaction_contract() -> None:
     assert "max-height: 100%" in css
     assert "transition: max-height" in css
     assert "event-body-inner" in css
+    assert ".event.can-collapse.collapsed .event-body-inner" in css
+    assert ".event.can-collapse.collapsed .event-body-inner::after" in css
+    assert ".event.collapsed .event-body-inner::after" not in css
     assert ".markdown-body" in css
     assert ".markdown-body table" in css
     assert ".event.can-collapse" in css
