@@ -6,7 +6,7 @@ fair across different evaluations.
 
 | Benchmark | Directory | Tracked contract |
 | --- | --- | --- |
-| ResearchClawBench | `benchmarks/ResearchClawBench/` | `README.md` + `role_prompt.md` + `adapter.py` |
+| [ResearchClawBench](https://github.com/InternScience/ResearchClawBench) | `benchmarks/ResearchClawBench/` | `README.md` + `role_prompt.md` + `adapter.py` |
 | QA / VQA-style benchmarks | `benchmarks/QA/` | `README.md` + `role_prompt.md` |
 
 ## Notes

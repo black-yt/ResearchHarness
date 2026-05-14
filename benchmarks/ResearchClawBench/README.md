@@ -1,10 +1,12 @@
-# ResearchClawBench
+# [ResearchClawBench](https://github.com/InternScience/ResearchClawBench)
 
 This directory contains the tracked files needed to document how `ResearchHarness`
-should be integrated into `ResearchClawBench`.
+should be integrated into
+[ResearchClawBench](https://github.com/InternScience/ResearchClawBench).
 
 ResearchHarness is intended to serve here as a **general and fair execution
-substrate** for tool-using LLM evaluation, while `ResearchClawBench` remains in
+substrate** for tool-using LLM evaluation, while
+[ResearchClawBench](https://github.com/InternScience/ResearchClawBench) remains in
 charge of task construction, hidden-answer isolation, and scoring.
 
 ## Recommended [`agents.json`](https://github.com/InternScience/ResearchClawBench/blob/main/evaluation/agents.json) Entry
@@ -25,7 +27,8 @@ entrypoint.
 
 ## Why This Shape
 
-- `ResearchClawBench` already prepares the workspace, writes `INSTRUCTIONS.md`,
+- [ResearchClawBench](https://github.com/InternScience/ResearchClawBench)
+  already prepares the workspace, writes `INSTRUCTIONS.md`,
   and isolates hidden checklist data.
 - `ResearchHarness` should only execute the agent through a stable harness
   interface.
