@@ -20,15 +20,16 @@ python3 run_server.py \
 
 ## OpenAI Test Example
 
-The example below uses the first real `SGI-DeepResearch` test item and appends
-the same output requirement shape used by the official SGI-Bench evaluation
-script.
+The example below embeds the first real `SGI-DeepResearch` test item directly
+and appends the same output requirement shape used by the official SGI-Bench
+evaluation script. It does not require the `datasets` package.
 
 ```python
 from pathlib import Path
-from datasets import load_dataset
 from openai import OpenAI
 
+
+QUESTION = r'''In GW150914's time–frequency ridge of the waveform spectrogram, three points are given ((t1, f1)=(-0.19118234 s, 35 Hz)，(t2, f2)=(-0.04541778 s, 60 Hz)，(t3, f3)=(-0.01540456 s, 90 Hz)). Based on the data you got, with t_c = 0, assuming an equal mass ratio (η = 0.25), compute the total mass M of the final black hole mass. Provide the total mass M in solar masses (M⊙), rounded to one decimal place, and show the calculation process'''
 
 OUTPUT_REQUIREMENTS = """
 You can reason step by step before giving the final answer. The final answer should be enclosed by <answer> and </answer>.
@@ -40,9 +41,7 @@ Step 2. ...
 <answer>1.00</answer>
 """
 
-dataset = load_dataset("InternScience/SGI-DeepResearch", split="test")
-row = dataset[0]
-prompt = row["question"] + OUTPUT_REQUIREMENTS
+prompt = QUESTION + OUTPUT_REQUIREMENTS
 
 workspace = Path("./workspace/sgi_deepresearch_example").resolve()
 workspace.mkdir(parents=True, exist_ok=True)
