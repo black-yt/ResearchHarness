@@ -56,12 +56,11 @@ By default, each request creates a fresh run directory:
 
 ## OpenAI Test Example
 
-Benchmark runners may pass `workspace-root` in the OpenAI request body when a
-case should run inside an already prepared workspace:
+The example below is directly runnable after the server is started. It creates
+a local workspace and sends a complete QA prompt through the OpenAI SDK.
 
 ```python
 from pathlib import Path
-
 from openai import OpenAI
 
 
@@ -72,7 +71,16 @@ client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 
 response = client.chat.completions.create(
     model="RH",
-    messages=[{"role": "user", "content": "Answer the question."}],
+    messages=[
+        {
+            "role": "user",
+            "content": (
+                "Who introduced the Transformer architecture, and in what year "
+                "was the paper 'Attention Is All You Need' published? "
+                "Answer in one sentence."
+            ),
+        }
+    ],
     extra_body={"workspace-root": str(workspace)},
 )
 
@@ -96,39 +104,52 @@ To return the agent's direct final text, use the default QA deployment command
 without wrapper flags. Advanced deployments can manually combine role prompts
 and wrapper flags as needed.
 
-External benchmark runners can then use the regular OpenAI SDK with:
-
-```python
-from openai import OpenAI
-
-client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
-
-response = client.chat.completions.create(
-    model="RH",
-    messages=[{"role": "user", "content": "Answer the question."}],
-)
-
-answer = response.choices[0].message.content
-```
-
 ## Multimodal Input
 
 For image benchmarks, send OpenAI-style content parts. The first API version
 supports one or more `data:image/...;base64,...` URLs in the same request.
 
 ```python
+import base64
+from io import BytesIO
+from pathlib import Path
+from PIL import Image, ImageDraw
+from openai import OpenAI
+
+
+image = Image.new("RGB", (320, 120), "white")
+draw = ImageDraw.Draw(image)
+draw.text((40, 45), "7 + 5 = ?", fill="black")
+buffer = BytesIO()
+image.save(buffer, format="PNG")
+data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+workspace = Path("./workspace/qa_vqa_example").resolve()
+workspace.mkdir(parents=True, exist_ok=True)
+
+client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
+
 response = client.chat.completions.create(
-    model="RH--gpt-5.5",
+    model="RH",
     messages=[
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "What is shown? Return JSON with key answer."},
+                {
+                    "type": "text",
+                    "text": (
+                        "The image contains a simple arithmetic expression. "
+                        "Return JSON with exactly two keys: expression and answer."
+                    ),
+                },
                 {"type": "image_url", "image_url": {"url": data_url}},
             ],
         }
     ],
+    extra_body={"workspace-root": str(workspace)},
 )
+
+print(response.choices[0].message.content)
 ```
 
 Use `RH` or omit `model` for the server's default `MODEL_NAME`. Use

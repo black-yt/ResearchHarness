@@ -30,7 +30,6 @@ is saved locally at
 ```python
 import base64
 from pathlib import Path
-
 from openai import OpenAI
 
 

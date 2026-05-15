@@ -44,17 +44,22 @@ python3 run_server.py \
 ## OpenAI Test Example
 
 Send each RCB case through the OpenAI SDK and pass the prepared RCB workspace
-as `workspace-root`. The example below mirrors how an RCB runner should provide
-the task prompt from the prepared workspace without exposing hidden checklist
-files.
+as `workspace-root`. The example below creates a minimal RCB-style workspace
+with `INSTRUCTIONS.md`, then sends exactly that instruction file as the user
+prompt without exposing hidden checklist files.
 
 ```python
 from pathlib import Path
-
 from openai import OpenAI
 
 
-workspace = Path("/abs/path/to/rcb/workspace").resolve()
+workspace = Path("./workspace/rcb_api_example").resolve()
+workspace.mkdir(parents=True, exist_ok=True)
+(workspace / "INSTRUCTIONS.md").write_text(
+    "Create report/report.md with a concise report explaining that this is a "
+    "minimal ResearchClawBench API smoke task. Then return a short final note.",
+    encoding="utf-8",
+)
 rcb_prompt = (workspace / "INSTRUCTIONS.md").read_text(encoding="utf-8")
 
 client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
@@ -62,7 +67,7 @@ client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 response = client.chat.completions.create(
     model="RH",
     messages=[{"role": "user", "content": rcb_prompt}],
-    extra_body={"workspace-root": "/abs/path/to/rcb/workspace"},
+    extra_body={"workspace-root": str(workspace)},
 )
 
 print(response.choices[0].message.content)

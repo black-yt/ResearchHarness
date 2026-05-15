@@ -26,7 +26,6 @@ evaluation script.
 
 ```python
 from pathlib import Path
-
 from datasets import load_dataset
 from openai import OpenAI
 

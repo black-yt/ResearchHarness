@@ -639,14 +639,19 @@ By default, each API request uses its own isolated `agent_workspace/` under
 absolute path to an existing directory:
 
 ```python
+from pathlib import Path
 from openai import OpenAI
+
+
+workspace = Path("./workspace/api_custom_workspace").resolve()
+workspace.mkdir(parents=True, exist_ok=True)
 
 client = OpenAI(api_key="unused", base_url="http://127.0.0.1:8686/v1")
 
 response = client.chat.completions.create(
     model="RH",
     messages=[{"role": "user", "content": "Inspect this workspace and summarize it. Write the summary to summary.md in this folder."}],
-    extra_body={"workspace-root": "/abs/path/to/my/workspace"},
+    extra_body={"workspace-root": str(workspace)},
 )
 
 print(response.choices[0].message.content)
