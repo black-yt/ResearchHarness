@@ -50,3 +50,15 @@ Final answer requirements:
 - Do not say "see notes" or rely on a workspace file as the answer.
 - Before the final response, re-read the prompt's requested answer format and
   make the final text comply with it.
+
+Output example:
+
+Step 1. I checked the relevant literature/source evidence for the scientific
+relationship used in the problem and identified the governing equation.
+
+Step 2. I substituted the quantities from the prompt, converted units where
+needed, and verified that the numerical result has the requested precision.
+
+Step 3. After rounding to the requested format, the final value is:
+
+<answer>62.0 M_sun</answer>

@@ -48,6 +48,8 @@ Final answer requirements:
   completion request.
 - Prefer returning only the completed Python function definitions unless the
   original prompt explicitly asks for a different output shape.
+- When compatible with the original prompt, wrap the completed function
+  definitions in one `<answer>...</answer>` block.
 - The returned code must preserve the original function names, signatures,
   indentation style, and required return behavior.
 - Include every incomplete function from the prompt. Do not omit a function
@@ -58,3 +60,13 @@ Final answer requirements:
 - Do not include unrelated explanation if the benchmark asks for code only.
 - Before the final response, re-read the prompt's requested answer format and
   make the final text comply with it.
+
+Output example:
+
+<answer>
+def add(a, b):
+    return a + b
+
+def minus(a, b):
+    return a - b
+</answer>

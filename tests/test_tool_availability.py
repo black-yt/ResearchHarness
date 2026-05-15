@@ -396,16 +396,16 @@ def test_main_agent_api() -> ToolTestResult:
     )
     result, stdout, stderr = call_with_capture(
         agent.run,
-        "Reply with exactly the lowercase token main-agent-ok and no other text.",
+        "What is 2 + 2? Reply with only the digit 4.",
         workspace_root=str(workdir),
     )
     text = str(result).strip()
-    if "main-agent-ok" not in text.lower():
+    if not re.fullmatch(r"\s*4\s*\.?\s*", text):
         return make_result(
             "MainAgentAPI",
             "FAIL",
             started_at,
-            "Main agent real API call did not return the expected marker.",
+            "Main agent real API call did not return the expected arithmetic answer.",
             text,
             stdout,
             stderr,

@@ -60,3 +60,24 @@ Final answer requirements:
 - Do not answer with only a summary of existing work.
 - Before the final response, re-read the prompt's requested answer format and
   make the final JSON valid.
+
+Output example:
+
+{
+  "Idea": "Propose a retrieval-augmented causal graph discovery framework that combines recent contrastive representation learning with intervention-aware graph refinement. The method targets the gap that existing approaches often infer correlations under distribution shift but do not explicitly separate causal mechanisms from spurious context features.",
+  "ImplementationSteps": {
+    "1": "Collect paired observational and weakly interventional datasets from the target domain and normalize all measured variables.",
+    "2": "Train a contrastive encoder to learn invariant representations across environments while preserving intervention-sensitive variables.",
+    "3": "Construct an initial causal graph from conditional independence tests and neural dependency scores.",
+    "4": "Refine the graph with an intervention-aware scoring function and remove edges that fail stability checks across environments.",
+    "5": "Validate predicted causal relations against held-out interventions and ablation studies."
+  },
+  "ImplementationOrder": ["1-2", "2-3", "3-4", "4-5"],
+  "Dataset": "Use public domain-specific observational datasets plus synthetic or weakly interventional splits generated from known perturbation labels.",
+  "EvaluationMetrics": {
+    "Causal Graph Accuracy": "Structural Hamming distance and edge F1 against available reference graphs.",
+    "Robustness": "Performance retention under environment shifts and missing-variable perturbations.",
+    "Practical Utility": "Improvement in downstream prediction or intervention selection compared with non-causal baselines."
+  },
+  "ExpectedOutcome": "The framework should produce more stable and interpretable causal graphs than correlation-based baselines while remaining feasible on real noisy datasets."
+}

@@ -58,6 +58,8 @@ Final answer requirements:
   text answer, not files in the workspace.
 - Return the complete structured action sequence as plain text that directly
   answers the user's experimental-process request.
+- When compatible with the original prompt, wrap the complete action sequence
+  in one `<answer>...</answer>` block.
 - Do not use markdown fences.
 - Do not use bullets or numbered prose around the final sequence unless the
   original task explicitly requests them.
@@ -80,3 +82,25 @@ variable_name = <Action name>(
   local file.
 - Before the final response, re-read the prompt's requested answer format and
   make the final text comply with it.
+
+Output example:
+
+<answer>
+dataset = <Load dataset>(
+    source="imagenet"
+)
+
+model_init = <Initialize model>(
+    model_type="CNN"
+)
+
+model_trained = <Train model>(
+    model=model_init,
+    data=dataset
+)
+
+metrics = <Calculate metrics>(
+    model=model_trained,
+    data=dataset
+)
+</answer>

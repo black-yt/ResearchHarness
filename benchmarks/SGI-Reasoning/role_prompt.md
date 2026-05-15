@@ -42,3 +42,12 @@ Final answer requirements:
   still include the boxed option letter.
 - Before the final response, re-read the prompt's options and make sure the
   boxed letter corresponds to the selected option.
+
+Output example:
+
+The image shows a monotonic increase in the measured response after the
+treatment, while options B and C describe trends that contradict the plotted
+direction. Option D mentions an unrelated mechanism not supported by the visual
+evidence. Therefore, the observation is most consistent with option A.
+
+Final answer: \boxed{A}
