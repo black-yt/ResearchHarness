@@ -8,7 +8,10 @@ fair across different evaluations.
 | --- | --- | --- |
 | [ResearchClawBench](https://github.com/InternScience/ResearchClawBench) | `benchmarks/ResearchClawBench/` | `README.md` + `role_prompt.md` + `adapter.py` |
 | QA / VQA-style benchmarks | `benchmarks/QA/` | `README.md` + `role_prompt.md` |
+| [SGI-DeepResearch](https://huggingface.co/datasets/InternScience/SGI-DeepResearch) | `benchmarks/SGI-DeepResearch/` | `README.md` + `role_prompt.md` |
+| [SGI-IdeaGeneration](https://huggingface.co/datasets/InternScience/SGI-IdeaGeneration) | `benchmarks/SGI-IdeaGeneration/` | `README.md` + `role_prompt.md` |
 | [SGI-DryExperiment](https://huggingface.co/datasets/InternScience/SGI-DryExperiment) | `benchmarks/SGI-DryExperiment/` | `README.md` + `role_prompt.md` |
+| [SGI-Reasoning](https://huggingface.co/datasets/InternScience/SGI-Reasoning) | `benchmarks/SGI-Reasoning/` | `README.md` + `role_prompt.md` |
 | [SGI-WetExperiment](https://huggingface.co/datasets/InternScience/SGI-WetExperiment) | `benchmarks/SGI-WetExperiment/` | `README.md` + `role_prompt.md` |
 
 ## Notes

@@ -54,7 +54,10 @@ def parse_experiment_steps(text):
 - Debug malformed steps before giving the final answer.
 
 Final answer requirements:
-- Return the complete structured action sequence as plain text.
+- The final response is the benchmark submission. The evaluator checks the final
+  text answer, not files in the workspace.
+- Return the complete structured action sequence as plain text that directly
+  answers the user's experimental-process request.
 - Do not use markdown fences.
 - Do not use bullets or numbered prose around the final sequence unless the
   original task explicitly requests them.
@@ -75,3 +78,5 @@ variable_name = <Action name>(
   they refer to earlier outputs.
 - The final answer must contain the actual complete process, not a pointer to a
   local file.
+- Before the final response, re-read the prompt's requested answer format and
+  make the final text comply with it.

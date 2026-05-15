@@ -1,4 +1,4 @@
-# [ResearchClawBench](https://github.com/InternScience/ResearchClawBench)
+# ResearchClawBench
 
 This directory contains the tracked files needed to document how `ResearchHarness`
 should be integrated into
@@ -36,7 +36,9 @@ python3 /abs/path/to/ResearchHarness/run_server.py \
   --api-runs-dir ./api_runs \
   --host 127.0.0.1 \
   --port 8686 \
-  --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/ResearchClawBench/role_prompt.md
+  --role-prompt-file /abs/path/to/ResearchHarness/benchmarks/ResearchClawBench/role_prompt.md \
+  --no-input-wrapper \
+  --no-output-wrapper
 ```
 
 Then send each RCB case through the OpenAI SDK and pass the prepared RCB
@@ -59,7 +61,8 @@ print(response.choices[0].message.content)
 Use `RH--<llm-model-name>` instead of `RH` when the request should override the
 server's default backend model. The API server keeps `agent_trace/` under
 `--api-runs-dir/run_.../`, while the agent works inside the supplied
-`workspace-root`.
+`workspace-root`. RCB uses its benchmark-specific role prompt and should not use
+the generic QA input/output wrappers by default.
 
 ## Why This Shape
 
