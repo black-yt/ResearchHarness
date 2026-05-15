@@ -51,7 +51,7 @@ By default, each request creates a fresh run directory:
     └── agent_trace/              # server-side trace and session state
         ├── api_trace.jsonl
         ├── trace_*.jsonl
-        └── _session_state.json
+        └── session_state_*.json
 ```
 
 ## OpenAI Test Example

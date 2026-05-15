@@ -359,6 +359,10 @@ def main() -> int:
         and "inputs/images/image_001.png" in first_user_trace
         and session_state_path.exists()
         and session_state_path.parent == trace_dir
+        and session_state_path.name.startswith("session_state_")
+        and trace_path is not None
+        and session_state_path.name.removeprefix("session_state_").removesuffix(".json")
+        == trace_path.name.removeprefix("trace_").removesuffix(".jsonl")
         and not (TMP_DIR / "agent_workspace" / "_session_state.json").exists()
         and api_response["choices"][0]["message"]["content"] == '{"expression":"7 + 5","answer":12}'
         and api_response["model"] == "RH--fake-vision-model"

@@ -104,7 +104,7 @@ the generic QA input/output wrappers by default.
   during evaluation, create a separate trace directory and add
   `--trace-dir /path/to/trace-dir` directly to the command. Do not use
   `<WORKSPACE>` as the trace directory, because that exposes `trace_*.jsonl` and
-  `_session_state.json` to the evaluated agent.
+  `session_state_*.json` to the evaluated agent.
 - The adapter prevents premature termination on long tasks by refusing to accept
   plain-text completion before `report/report.md` exists in the workspace.
 - The adapter excludes `AskUser`; RCB runs must remain fully non-interactive.

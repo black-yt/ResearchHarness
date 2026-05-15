@@ -414,7 +414,7 @@ When a trace directory is provided, ResearchHarness creates a file named like
 `trace_YYYYMMDD_HHMMSS_<runid>.jsonl` inside that directory.
 You can replace `./traces` with any other trace directory. Keep it separate from
 the agent workspace so the agent cannot inspect its own trace or session state.
-Without `--trace-dir`, CLI runs do not write a trace file or `_session_state.json`.
+Without `--trace-dir`, CLI runs do not write a trace file or `session_state_*.json`.
 
 Use an explicit workspace:
 
@@ -557,7 +557,7 @@ Without a valid request-level `workspace-root`, each request creates:
     └── agent_trace/              # server-side trace and session state
         ├── api_trace.jsonl
         ├── trace_*.jsonl
-        └── _session_state.json
+        └── session_state_*.json
 ```
 
 In deployment mode, traces are saved by default. Each request writes API events,
@@ -667,7 +667,7 @@ public request field is intentionally only
 request routing cannot silently diverge.
 
 In both cases, the server still creates a fresh `run_.../agent_trace/` under
-`--api-runs-dir`, so API trace, agent trace, and `_session_state.json` remain
+`--api-runs-dir`, so API trace, agent trace, and `session_state_*.json` remain
 isolated and easy to audit. For custom workspaces, uploaded API images are saved
 directly inside that workspace under `inputs/images/`.
 
@@ -853,7 +853,10 @@ The trace includes:
 - runtime-injected messages
 - final assistant text
 
-When tracing is enabled, `_session_state.json` is written next to the trace file.
+When tracing is enabled, `session_state_*.json` is written next to the trace
+file using the same timestamp and run id suffix, for example
+`trace_20260515_172445_c08d161a4b9d.jsonl` and
+`session_state_20260515_172445_c08d161a4b9d.json`.
 Without `--trace-dir`, CLI runs do not write either file. API deployment mode
 always writes trace records under each run's `agent_trace/` directory.
 For CLI and frontend runs, do not use the agent-visible workspace itself as the

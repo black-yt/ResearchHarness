@@ -9,7 +9,7 @@ from agent_base.model_profiles import ModelProfile
 from agent_base.utils import safe_jsonable
 
 
-SESSION_STATE_FILENAME = "_session_state.json"
+SESSION_STATE_PREFIX = "session_state"
 
 
 @dataclass
@@ -74,8 +74,11 @@ class AgentSessionState:
         }
 
 
-def resolve_session_state_path(trace_dir: str | Path) -> Path:
-    return Path(trace_dir) / SESSION_STATE_FILENAME
+def resolve_session_state_path(trace_path: str | Path) -> Path:
+    trace = Path(trace_path)
+    stem = trace.stem
+    suffix = stem[len("trace_") :] if stem.startswith("trace_") else stem
+    return trace.with_name(f"{SESSION_STATE_PREFIX}_{suffix}.json")
 
 
 def persist_session_state(path: str | Path, state: AgentSessionState) -> None:

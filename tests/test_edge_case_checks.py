@@ -509,9 +509,14 @@ def check_old_image_parts_are_omitted_from_followup_requests_but_traced() -> tup
     request_text = json.dumps(last_payload.get("request_messages", []), ensure_ascii=False)
     image_aging = last_payload.get("image_aging", {})
     image_aging_text = json.dumps(image_aging, ensure_ascii=False)
-    session_state_text = (trace_dir / "_session_state.json").read_text(encoding="utf-8")
+    session_state_path = Path(session["session_state_path"])
+    session_state_text = session_state_path.read_text(encoding="utf-8")
     ok = (
         session.get("termination") == "result"
+        and session_state_path.exists()
+        and session_state_path.name.startswith("session_state_")
+        and session_state_path.name.removeprefix("session_state_").removesuffix(".json")
+        == Path(session["trace_path"]).name.removeprefix("trace_").removesuffix(".jsonl")
         and first_image not in second_call_text
         and second_image in second_call_text
         and "Previous image omitted" in second_call_text
@@ -1241,6 +1246,9 @@ def check_context_compaction_persists_summary_and_session_state() -> tuple[bool,
         and session.get("result_text") == "done"
         and session_state_path.exists()
         and session_state_path.parent.name == "traces"
+        and session_state_path.name.startswith("session_state_")
+        and session_state_path.name.removeprefix("session_state_").removesuffix(".json")
+        == Path(session["trace_path"]).name.removeprefix("trace_").removesuffix(".jsonl")
         and not (case_dir / "_session_state.json").exists()
         and session_state.get("model_profile", {}).get("compact_trigger_tokens_override") == 16384
         and len(compactions) == 1
@@ -1450,6 +1458,9 @@ def check_context_compaction_failure_is_recorded_before_hard_stop() -> tuple[boo
         and session["termination"].startswith("input token limit reached")
         and session_state_path.exists()
         and session_state_path.parent.name == "traces"
+        and session_state_path.name.startswith("session_state_")
+        and session_state_path.name.removeprefix("session_state_").removesuffix(".json")
+        == Path(session["trace_path"]).name.removeprefix("trace_").removesuffix(".jsonl")
         and not (case_dir / "_session_state.json").exists()
         and session_state.get("termination", "").startswith("input token limit reached")
         and len(compactions) == 1
@@ -1823,11 +1834,13 @@ def check_session_state_is_only_written_with_trace_dir() -> tuple[bool, str]:
     agent = FakeAgent()
     session = agent._run_session("Return done.", workspace_root=str(case_dir))
     workspace_state_path = case_dir / "_session_state.json"
+    workspace_named_state_paths = sorted(case_dir.glob("session_state_*.json"))
     detail = json.dumps(
         {
             "termination": session.get("termination"),
             "session_state_path": session.get("session_state_path"),
             "workspace_state_exists": workspace_state_path.exists(),
+            "workspace_named_state_paths": [str(path) for path in workspace_named_state_paths],
         },
         ensure_ascii=False,
         indent=2,
@@ -1836,6 +1849,7 @@ def check_session_state_is_only_written_with_trace_dir() -> tuple[bool, str]:
         session.get("termination") == "result"
         and session.get("session_state_path") == ""
         and not workspace_state_path.exists()
+        and not workspace_named_state_paths
     )
     return ok, detail
 

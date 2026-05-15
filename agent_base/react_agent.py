@@ -913,7 +913,7 @@ class MultiTurnReactAgent(BaseAgent):
             on_event=event_callback,
         )
         self.trace_path = trace_writer.path
-        self.session_state_path = resolve_session_state_path(trace_dir) if trace_dir else None
+        self.session_state_path = resolve_session_state_path(self.trace_path) if self.trace_path else None
         session_state = AgentSessionState(
             run_id=trace_writer.run_id,
             model_name=self.model,

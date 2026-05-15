@@ -344,7 +344,7 @@ independent trace directory:
     └── agent_trace/              # server-side trace and session state
         ├── api_trace.jsonl
         ├── trace_*.jsonl
-        └── _session_state.json
+        └── session_state_*.json
 ```
 
 Meaning:
@@ -378,7 +378,7 @@ resending image bytes.
 
 This separation keeps user-visible tool work separate from server-side trace files.
 In API deployment mode, traces are saved by default: every request writes
-`api_trace.jsonl`, `trace_*.jsonl`, and `_session_state.json` under that run's `agent_trace/`
+`api_trace.jsonl`, `trace_*.jsonl`, and `session_state_*.json` under that run's `agent_trace/`
 directory.
 
 ## 6. Text Request with OpenAI SDK
@@ -582,7 +582,7 @@ Important files:
 | --- | --- |
 | `api_trace.jsonl` | API events, agent result records, and enabled wrapper records. |
 | `trace_*.jsonl` | Flat agent runtime trace. |
-| `_session_state.json` | Current session state, written next to `trace_*.jsonl` when tracing is enabled. |
+| `session_state_*.json` | Current session state, written next to `trace_*.jsonl` with the same timestamp and run id suffix when tracing is enabled. |
 
 The trace stores tool calls, tool results, LLM call capture payloads, compaction
 events, errors, and final termination state.
