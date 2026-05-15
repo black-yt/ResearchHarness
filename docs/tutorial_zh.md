@@ -334,15 +334,15 @@ run 目录，里面包含 agent 可见 workspace 和独立 trace 目录：
 | `agent_trace/` | API trace、agent trace 和 runtime 记录。 |
 
 如果请求中提供 `workspace-root`，并且它是一个指向已存在目录的绝对路径，
-agent 会直接使用这个目录，而不是默认的 `agent_workspace/`。如果该字段缺失、
-是相对路径，或不是已存在目录，本次请求会回退到默认的 `agent_workspace/`。
-请求字段只能写成 `workspace-root`；`workspace_root` 等同义写法会被拒绝，
-避免路径选择被静默忽略。
+这个目录就是本次请求的 agent workspace。ResearchHarness 不会在用户指定的
+workspace 内再创建任何 `run_.../` 子目录。如果该字段缺失、是相对路径，或不是
+已存在目录，本次请求会回退到默认的 `agent_workspace/`。请求字段只能写成
+`workspace-root`；`workspace_root` 等同义写法会被拒绝，避免路径选择被静默忽略。
 
 无论是否使用自定义 `workspace-root`，每个请求都会在 `--api-runs-dir` 下创建独立的
 `agent_trace/`。因此 API trace、agent trace 和 `_session_state.json` 仍然统一回溯。
-对于自定义 workspace，API 上传的图片会保存在该 workspace 的
-`inputs/images/<run_id>/` 下。
+对于自定义 workspace，API 上传的图片会直接保存在该 workspace 的
+`inputs/images/` 下。
 
 对于多模态请求，每张图片会同时走两条路径：当底层模型支持多模态输入时，
 图片内容会作为初始多模态输入直接传给模型；每张图片也会保存到本次选择的

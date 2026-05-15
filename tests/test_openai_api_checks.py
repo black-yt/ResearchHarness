@@ -310,11 +310,7 @@ def main() -> int:
     custom_run_dir = custom_run_dirs[0] if custom_run_dirs else None
     custom_agent_trace_dir = custom_run_dir / "agent_trace" if custom_run_dir else None
     custom_default_workspace = custom_run_dir / "agent_workspace" if custom_run_dir else None
-    custom_saved_image = (
-        custom_workspace / "inputs" / "images" / custom_run_dir.name / "image_000.png"
-        if custom_run_dir
-        else None
-    )
+    custom_saved_image = custom_workspace / "inputs" / "images" / "image_000.png" if custom_run_dir else None
     missing_run_dirs = sorted((api_runs_root / "missing_workspace").glob("run_*"))
     missing_run_dir = missing_run_dirs[0] if missing_run_dirs else None
     missing_default_workspace = missing_run_dir / "agent_workspace" if missing_run_dir else None

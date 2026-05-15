@@ -187,13 +187,11 @@ def resolve_api_model_selection(model_label: str) -> tuple[str, str]:
     )
 
 
-def prepare_openai_input(messages: list[Any], workspace_root: Path, *, image_subdir: str = "") -> PreparedInput:
+def prepare_openai_input(messages: list[Any], workspace_root: Path) -> PreparedInput:
     wrapper_messages: list[dict[str, str]] = []
     initial_content_parts: list[dict[str, Any]] = []
     image_paths: list[str] = []
     image_dir = workspace_root / "inputs" / "images"
-    if image_subdir:
-        image_dir = image_dir / image_subdir
     image_index = 0
 
     for message in messages:
@@ -468,7 +466,6 @@ def run_chat_completion(payload: dict[str, Any], config: ServerConfig) -> dict[s
     prepared = prepare_openai_input(
         payload["messages"],
         agent_workspace,
-        image_subdir=run_id if workspace_meta["source"] == "request" else "",
     )
     llm_config = default_llm_config(model_name=backend_model)
     backend_model = str(llm_config.get("model", ""))

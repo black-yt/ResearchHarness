@@ -87,12 +87,15 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-If `workspace-root` is absent, relative, or not an existing directory, RH falls
-back to the default per-request `agent_workspace/`. The `agent_trace/` directory
-is always created under `--api-runs-dir/run_.../` for auditability. For custom
-workspaces, uploaded images are saved under `inputs/images/<run_id>/` inside
-that workspace. Use exactly `workspace-root`; synonymous request fields such as
-`workspace_root` are rejected.
+If `workspace-root` is provided and points to an existing directory, that
+directory is the workspace for this request; RH does not create any `run_.../`
+subdirectory inside it. If `workspace-root` is absent, relative, or not an
+existing directory, RH falls back to the default per-request
+`agent_workspace/`. The `agent_trace/` directory is always created under
+`--api-runs-dir/run_.../` for auditability. For custom workspaces, uploaded
+images are saved under `inputs/images/` directly inside that workspace. Use
+exactly `workspace-root`; synonymous request fields such as `workspace_root` are
+rejected.
 
 The input and output LLM wrappers are disabled by default in normal deployment
 mode:
@@ -162,7 +165,7 @@ The API saves each submitted image inside the selected workspace, passes the
 image content to the first ResearchHarness model call when the backend model
 supports image parts, and includes each saved path in the agent-visible text.
 With the default workspace this is `agent_workspace/inputs/images/`; with a
-custom `workspace-root`, this is `inputs/images/<run_id>/` inside that
+custom `workspace-root`, this is `inputs/images/` inside that
 workspace.
 
 The returned answer should be self-contained for a remote evaluator. Workspace

@@ -658,16 +658,18 @@ print(response.choices[0].message.content)
 ```
 
 If `workspace-root` is provided and points to an existing directory, the agent
-runs directly in that directory. If it is missing, relative, or not an existing
-directory, ResearchHarness falls back to the default per-request
-`agent_workspace/`. The public request field is intentionally only
+uses that directory as the workspace for this request. ResearchHarness does not
+create any `run_.../` subdirectory inside a user-provided workspace. If
+`workspace-root` is missing, relative, or not an existing directory,
+ResearchHarness falls back to the default per-request `agent_workspace/`. The
+public request field is intentionally only
 `workspace-root`; synonymous spellings such as `workspace_root` are rejected so
 request routing cannot silently diverge.
 
 In both cases, the server still creates a fresh `run_.../agent_trace/` under
 `--api-runs-dir`, so API trace, agent trace, and `_session_state.json` remain
 isolated and easy to audit. For custom workspaces, uploaded API images are saved
-inside that workspace under `inputs/images/<run_id>/`.
+directly inside that workspace under `inputs/images/`.
 
 ### Text Request
 
@@ -736,7 +738,7 @@ For multimodal API requests, each image content part is passed directly to the
 backend model when the selected model supports image parts. Each image is also
 saved inside the selected workspace. With the default API workspace this is
 `agent_workspace/inputs/images/`; with request-level `workspace-root`, this is
-`inputs/images/<run_id>/` inside that workspace. Each saved relative path is
+`inputs/images/` directly inside that workspace. Each saved relative path is
 included in the agent-visible text next to the corresponding image content
 part. If an image is needed again after later turns, the agent can call
 `ReadImage` on the saved path instead of relying on repeated inline image bytes.

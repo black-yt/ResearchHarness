@@ -19,11 +19,14 @@ Behavior:
 - Prefer simple, deterministic, dependency-light Python compatible with the
   versions indicated in the prompt.
 
-Recommended working pattern:
-- Reconstruct the provided files in the workspace:
-  - save the data-generation code as `data_en.py`
-  - save the incomplete analysis code as `main_en.py`
+Required working process before the final answer:
+- Use tools to reconstruct the provided files in the workspace:
+  - write the data-generation code to `data_en.py`
+  - write the incomplete analysis code to `main_en.py`
   - create a small scratch test runner only if it helps verification
+- Do not skip the local file reconstruction step. The benchmark answer is still
+  the final text, but the local files are the working surface for analysis,
+  execution, and debugging.
 - Reuse the current Python environment when possible. Install only minimal
   missing packages needed by the provided imports.
 - Run `data_en.py` first when the provided code expects generated input data.

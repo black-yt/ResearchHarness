@@ -357,16 +357,17 @@ Meaning:
 | `agent_trace/` | API trace, agent trace, and runtime records. |
 
 If a request provides `workspace-root` with an absolute path to an existing
-directory, the agent uses that directory instead of the default
-`agent_workspace/`. If the field is missing, relative, or not an existing
-directory, the request falls back to the default `agent_workspace/`. Use exactly
+directory, that directory is the workspace for this request. ResearchHarness
+does not create any `run_.../` subdirectory inside a user-provided workspace. If
+the field is missing, relative, or not an existing directory, the request falls
+back to the default `agent_workspace/`. Use exactly
 `workspace-root`; synonymous spellings such as `workspace_root` are rejected to
 avoid silent routing mistakes.
 
 The per-request `agent_trace/` directory is always created under
 `--api-runs-dir`, even when a custom `workspace-root` is used. For custom
-workspaces, uploaded images are saved inside that workspace under
-`inputs/images/<run_id>/`.
+workspaces, uploaded images are saved directly inside that workspace under
+`inputs/images/`.
 
 For multimodal requests, image inputs are handled in two ways at the same time:
 the image content is passed to the backend model as initial multimodal input
